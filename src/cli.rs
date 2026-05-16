@@ -125,15 +125,29 @@ pub enum ForumCmd {
     Users {
         #[arg(long)]
         q: Option<String>,
-        #[arg(long, value_parser = ["admin", "mod", "member", "banned"])]
+        #[arg(long, value_parser = ["admin", "mod", "teacher", "member", "banned"])]
         role: Option<String>,
         #[arg(long, default_value_t = 1)]
         page: u32,
     },
+    /// Admin: register a new teacher account (username + password)
+    NewTeacher {
+        #[arg(long)]
+        username: String,
+        #[arg(long)]
+        display_name: Option<String>,
+        #[arg(long)]
+        email: Option<String>,
+        /// Initial password; omit to auto-generate
+        #[arg(long)]
+        password: Option<String>,
+    },
+    /// Teacher / admin: dashboard overview (members/threads/categories/recent)
+    TeacherOverview,
     /// Admin: change a user's role
     SetRole {
         user_id: u64,
-        #[arg(value_parser = ["admin", "mod", "member", "banned"])]
+        #[arg(value_parser = ["admin", "mod", "teacher", "member", "banned"])]
         role: String,
     },
     /// List unread notifications
@@ -392,6 +406,37 @@ async fn cmd_forum(c: ForumCmd, fmt: Format) -> Result<()> {
         }
         ForumCmd::Notifications => {
             let v: Value = f.get("/api/forum/me/notifications").await?;
+            emit(&v, fmt)
+        }
+        ForumCmd::NewTeacher { username, display_name, email, password } => {
+            let pwd = password.unwrap_or_else(|| {
+                let chars: Vec<char> = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789".chars().collect();
+                use std::time::{SystemTime, UNIX_EPOCH};
+                let mut seed = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
+                let mut s = String::new();
+                for _ in 0..14 {
+                    seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+                    s.push(chars[(seed as usize) % chars.len()]);
+                }
+                s
+            });
+            let v: Value = f.post("/api/forum/admin/teachers", &json!({
+                "username": username,
+                "display_name": display_name,
+                "email": email,
+                "password": pwd,
+            })).await?;
+            emit(&json!({
+                "ok": v["ok"],
+                "user_id": v["user_id"],
+                "username": v["username"],
+                "role": "teacher",
+                "initial_password": pwd,
+                "note": "Hand the username + password to the teacher and ask them to change it on first login.",
+            }), fmt)
+        }
+        ForumCmd::TeacherOverview => {
+            let v: Value = f.get("/api/forum/teacher/overview").await?;
             emit(&v, fmt)
         }
     }
