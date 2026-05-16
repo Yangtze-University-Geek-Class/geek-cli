@@ -34,8 +34,14 @@ struct User {
 }
 
 pub async fn login() -> Result<(String, String)> {
+    // GitHub's OAuth endpoint frequently closes keep-alive connections between
+    // polls. Reusing a pooled connection after the server has half-closed it
+    // surfaces as "connection closed before message completed". Disable the
+    // pool entirely + retry once on transient errors.
     let client = reqwest::Client::builder()
         .user_agent("geek-cli")
+        .pool_max_idle_per_host(0)
+        .timeout(Duration::from_secs(15))
         .build()?;
 
     let dc: DeviceCode = client
@@ -67,20 +73,37 @@ pub async fn login() -> Result<(String, String)> {
         }
         tokio::time::sleep(Duration::from_secs(interval)).await;
 
-        let resp: TokenResp = client
-            .post(TOKEN_URL)
-            .header("Accept", "application/json")
-            .form(&[
-                ("client_id", CLIENT_ID),
-                ("device_code", dc.device_code.as_str()),
-                ("grant_type", "urn:ietf:params:oauth:grant-type:device_code"),
-            ])
-            .send()
-            .await
-            .context("token poll")?
-            .json()
-            .await
-            .context("parse token response")?;
+        let mut attempt = 0u8;
+        let resp: TokenResp = loop {
+            attempt += 1;
+            let r = client
+                .post(TOKEN_URL)
+                .header("Accept", "application/json")
+                .form(&[
+                    ("client_id", CLIENT_ID),
+                    ("device_code", dc.device_code.as_str()),
+                    ("grant_type", "urn:ietf:params:oauth:grant-type:device_code"),
+                ])
+                .send()
+                .await;
+            match r {
+                Ok(res) => match res.json::<TokenResp>().await {
+                    Ok(parsed) => break parsed,
+                    Err(e) if attempt < 3 => {
+                        eprintln!("[geek] token parse retry {attempt}: {e}");
+                        tokio::time::sleep(Duration::from_secs(2)).await;
+                        continue;
+                    }
+                    Err(e) => return Err(e).context("parse token response"),
+                },
+                Err(e) if attempt < 3 => {
+                    eprintln!("[geek] token poll retry {attempt}: {e}");
+                    tokio::time::sleep(Duration::from_secs(2)).await;
+                    continue;
+                }
+                Err(e) => return Err(e).context("token poll"),
+            }
+        };
 
         match resp {
             TokenResp::Ok { access_token } => {
