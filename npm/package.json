@@ -1,0 +1,30 @@
+{
+  "name": "geek-cli",
+  "version": "0.1.0",
+  "description": "Yangtze University Geek Class (YUGC) CLI for GitHub org admin + AI Native forum",
+  "bin": {
+    "geek": "bin/geek.js"
+  },
+  "files": [
+    "bin/",
+    "install.js",
+    "README.md"
+  ],
+  "scripts": {
+    "postinstall": "node install.js || true"
+  },
+  "engines": {
+    "node": ">=16"
+  },
+  "keywords": ["yugc", "geek", "github", "cli", "forum", "ai-native"],
+  "author": "Yangtze University Geek Class",
+  "license": "MIT",
+  "homepage": "https://github.com/Yangtze-University-Geek-Class/geek-cli",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Yangtze-University-Geek-Class/geek-cli.git"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
