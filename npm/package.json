@@ -1,6 +1,6 @@
 {
-  "name": "geek-cli",
-  "version": "0.1.0",
+  "name": "@yangtzeu/geek-cli",
+  "version": "0.1.2",
   "description": "Yangtze University Geek Class (YUGC) CLI for GitHub org admin + AI Native forum",
   "bin": {
     "geek": "bin/geek.js"

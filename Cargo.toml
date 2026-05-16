@@ -1,6 +1,6 @@
 [package]
 name = "geek-cli"
-version = "0.1.0"
+version = "0.1.2"
 edition = "2021"
 description = "Unified CLI for the Yangtze University Geek Class GitHub orgs — agent-friendly"
 repository = "https://github.com/Yangtze-University-Geek-Class/geek-cli"

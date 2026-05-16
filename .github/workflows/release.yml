@@ -71,11 +71,26 @@ jobs:
           name: geek-${{ matrix.target }}
           path: dist/
 
+  upload-installer:
+    name: upload install scripts
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - uses: actions/checkout@v4
+      - name: Upload install.sh / install.ps1
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            install.sh
+            install.ps1
+
   publish-npm:
     name: publish npm wrapper
     needs: build
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

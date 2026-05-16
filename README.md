@@ -8,17 +8,42 @@ Yangtze University Geek Class 的统一 CLI，面向 AI agent 和命令行用户
 
 ## 安装
 
-### 从源码
+### 一键脚本（推荐）
+
+```bash
+# macOS / Linux
+curl -fsSL https://github.com/Yangtze-University-Geek-Class/geek-cli/releases/latest/download/install.sh | sh
+
+# Windows PowerShell
+irm https://github.com/Yangtze-University-Geek-Class/geek-cli/releases/latest/download/install.ps1 | iex
+```
+
+脚本自动检测平台（mac/linux/windows × x64/arm64，linux 自动判 glibc/musl），下载 binary 到 `~/.local/bin/geek`（Windows: `%USERPROFILE%\.local\bin\geek.exe`），校验 sha256。装完按提示把 `~/.local/bin` 加进 `$PATH`。
+
+环境变量：`GEEK_VERSION=v0.1.2` 锁版本，`GEEK_INSTALL_DIR=/usr/local/bin` 改路径。
+
+### npm（scoped 包，避免重名冲突）
+
+> 注意：包名是 `@yangtzeu/geek-cli`，不是 `geek-cli`（npm 上同名是 6 年前一个 apollo 老包）。
+
+```bash
+npm i -g @yangtzeu/geek-cli
+# 或：pnpm/yarn 同理
+```
+
+如果你公司 / 学校 npm 镜像走内网（如 verdaccio），请显式指定官方 registry：
+
+```bash
+npm i -g @yangtzeu/geek-cli --registry=https://registry.npmjs.org
+```
+
+### 从源码 / Release
 
 ```bash
 cargo install --git https://github.com/Yangtze-University-Geek-Class/geek-cli
 ```
 
-### release 二进制
-
-下载对应平台压缩包：https://github.com/Yangtze-University-Geek-Class/geek-cli/releases
-
-放到 `$PATH` 任意目录即可。
+或下载对应平台 binary：https://github.com/Yangtze-University-Geek-Class/geek-cli/releases
 
 ## 上手
 
