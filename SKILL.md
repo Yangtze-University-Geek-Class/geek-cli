@@ -111,6 +111,53 @@ Returns recent org-public events (push, PR, issue, release, fork, star).
 Not the same as GitHub Enterprise Cloud's audit log — that endpoint requires
 GHEC and isn't covered here.
 
+## Forum (AI Native discussion) — yangtzeu.work/forum
+
+The CLI uses the same stored GitHub PAT as auth. The forum backend resolves the PAT via GitHub `/user` once, caches the github_id → forum_user mapping for 5 minutes, and treats subsequent calls as that forum user. You don't need a separate forum login.
+
+```bash
+# identity + stats
+geek forum me                              # current forum user, role, groups, permissions
+geek forum stats                           # member count, thread/post totals, recent threads
+
+# read
+geek forum categories                      # 6 AI Native sections
+geek forum threads                         # latest across all
+geek forum threads --category models       # in one section
+geek forum threads --q "agent"             # title search
+geek forum threads --sort hot              # by view + reply
+geek forum threads --archive               # legacy mbbs read-only archive
+geek forum thread 42                       # thread + replies (page 1)
+geek forum user crosery                    # public profile
+
+# write (requires member or above)
+geek forum new --category agent-mcp --title "MCP server discovery" --body "正文..."
+geek forum new --category models --title "..." --body-file ./draft.md
+geek forum new --category models --title "..." --body-file -        # read from stdin
+geek forum reply 42 --body "回复内容"
+geek forum reply 42 --reply-to 88 --body "回复 #88 楼"
+geek forum like 99                         # toggles like on post 99
+geek forum delete-thread 42                # own thread, or any if admin
+geek forum delete-post 99                  # own post, or any if admin
+
+# admin (requires role=admin or mod)
+geek forum users --role admin              # list role=admin
+geek forum users --q crosery               # search by username/display/github
+geek forum set-role 165 admin              # promote user 165 to 负责人
+geek forum set-role 165 member             # demote
+geek forum set-role 165 banned             # ban
+geek forum pin-thread 42 --what sticky     # toggle 置顶 (or essence / lock)
+geek forum pin-thread 42 --what sticky --on=false   # un-stick
+
+# groups
+geek forum groups                          # list 游客 / 成员 / 负责人 with member + perm counts
+geek forum notifications                   # your unread + recent
+```
+
+Permissions are enforced on the backend (`hasPermission(...)` per route). The CLI will surface 403 verbatim — non-admin users calling admin endpoints will fail at the API layer, not just the CLI.
+
+By default the forum API lives at `https://yangtzeu.work`. Override with `GEEK_FORUM_BASE=https://forum.yangtzeu.work` once the dedicated subdomain has its cert.
+
 ## When to use the web dashboard instead
 
 `geek dashboard <org>` opens `https://github.yangtzeu.work/admin/<org>` in the

@@ -3,6 +3,7 @@ use clap::{Parser, Subcommand};
 use serde_json::{Value, json};
 
 use crate::config::{self, Stored};
+use crate::forum::ForumClient;
 use crate::gh::GhClient;
 use crate::output::{Format, emit, print_message};
 
@@ -40,11 +41,103 @@ pub enum Cmd {
     /// Audit / activity
     #[command(subcommand)]
     Activity(ActivityCmd),
+    /// Forum (YUGC AI Native discussion) commands
+    #[command(subcommand)]
+    Forum(ForumCmd),
     /// Open the YUGC admin dashboard in browser
     Dashboard {
         /// Optional org
         org: Option<String>,
     },
+}
+
+#[derive(Subcommand, Debug)]
+pub enum ForumCmd {
+    /// Show current forum identity (resolved from GitHub PAT via github_id)
+    Me,
+    /// Forum-wide stats
+    Stats,
+    /// List active (non-legacy) categories
+    Categories,
+    /// List threads. --archive shows the legacy mbbs archive instead.
+    Threads {
+        #[arg(long)]
+        category: Option<String>,
+        #[arg(long)]
+        q: Option<String>,
+        #[arg(long, default_value = "latest", value_parser = ["latest", "hot"])]
+        sort: String,
+        #[arg(long, default_value_t = 1)]
+        page: u32,
+        #[arg(long)]
+        archive: bool,
+    },
+    /// Show a thread + replies
+    Thread {
+        id: u64,
+        #[arg(long, default_value_t = 1)]
+        page: u32,
+    },
+    /// Create a new thread
+    New {
+        /// Category slug (use `forum categories` to list)
+        #[arg(long)]
+        category: String,
+        #[arg(long)]
+        title: String,
+        /// Body text; mutually exclusive with --body-file
+        #[arg(long)]
+        body: Option<String>,
+        /// Read body from file (path or `-` for stdin)
+        #[arg(long)]
+        body_file: Option<String>,
+    },
+    /// Reply to a thread
+    Reply {
+        thread_id: u64,
+        #[arg(long)]
+        body: Option<String>,
+        #[arg(long)]
+        body_file: Option<String>,
+        /// Optional parent post id to reply to a specific floor
+        #[arg(long)]
+        reply_to: Option<u64>,
+    },
+    /// Like / unlike a post
+    Like { post_id: u64 },
+    /// Delete a thread you own (or any thread if admin)
+    DeleteThread { id: u64 },
+    /// Delete a post you own (or any post if admin)
+    DeletePost { id: u64 },
+    /// Admin: pin/unpin / mark essence / lock thread
+    PinThread {
+        id: u64,
+        #[arg(long, value_parser = ["sticky", "essence", "lock"])]
+        what: String,
+        #[arg(long, default_value_t = true)]
+        on: bool,
+    },
+    /// Show a user's public profile
+    User { username: String },
+    /// List groups
+    Groups,
+    /// Admin: list forum users (paginated, filterable)
+    Users {
+        #[arg(long)]
+        q: Option<String>,
+        #[arg(long, value_parser = ["admin", "mod", "member", "banned"])]
+        role: Option<String>,
+        #[arg(long, default_value_t = 1)]
+        page: u32,
+    },
+    /// Admin: change a user's role
+    SetRole {
+        user_id: u64,
+        #[arg(value_parser = ["admin", "mod", "member", "banned"])]
+        role: String,
+    },
+    /// List unread notifications
+    Notifications,
 }
 
 #[derive(Subcommand, Debug)]
@@ -189,7 +282,118 @@ pub async fn run(cli: Cli) -> Result<()> {
         Cmd::Invite(c) => cmd_invite(c, cli.format).await,
         Cmd::Repo(c) => cmd_repo(c, cli.format).await,
         Cmd::Activity(c) => cmd_activity(c, cli.format).await,
+        Cmd::Forum(c) => cmd_forum(c, cli.format).await,
         Cmd::Dashboard { org } => cmd_dashboard(org),
+    }
+}
+
+fn read_body(body: Option<String>, body_file: Option<String>) -> Result<String> {
+    if let Some(b) = body {
+        return Ok(b);
+    }
+    if let Some(p) = body_file {
+        if p == "-" {
+            use std::io::Read;
+            let mut s = String::new();
+            std::io::stdin().read_to_string(&mut s)?;
+            return Ok(s);
+        }
+        return std::fs::read_to_string(&p).with_context(|| format!("read {p}"));
+    }
+    bail!("provide --body or --body-file")
+}
+
+async fn cmd_forum(c: ForumCmd, fmt: Format) -> Result<()> {
+    let token = config::require_token()?;
+    let f = ForumClient::new(token)?;
+    match c {
+        ForumCmd::Me => {
+            let v: Value = f.get("/api/forum/me").await?;
+            emit(&v, fmt)
+        }
+        ForumCmd::Stats => {
+            let v: Value = f.get("/api/forum/stats").await?;
+            emit(&v, fmt)
+        }
+        ForumCmd::Categories => {
+            let v: Value = f.get("/api/forum/categories").await?;
+            emit(&v, fmt)
+        }
+        ForumCmd::Threads { category, q, sort, page, archive } => {
+            let mut qs: Vec<String> = vec![format!("sort={sort}"), format!("page={page}")];
+            if let Some(c) = category { qs.push(format!("category={}", urlencoding::encode(&c))); }
+            if let Some(s) = q { qs.push(format!("q={}", urlencoding::encode(&s))); }
+            if archive { qs.push("archive=1".into()); }
+            let v: Value = f.get(&format!("/api/forum/threads?{}", qs.join("&"))).await?;
+            emit(&v, fmt)
+        }
+        ForumCmd::Thread { id, page } => {
+            let v: Value = f.get(&format!("/api/forum/threads/{id}?page={page}")).await?;
+            emit(&v, fmt)
+        }
+        ForumCmd::New { category, title, body, body_file } => {
+            let body = read_body(body, body_file)?;
+            // resolve slug -> category_id
+            let cats: Value = f.get("/api/forum/categories").await?;
+            let id = cats["categories"].as_array().and_then(|a| a.iter().find(|c| c["slug"] == Value::String(category.clone()))).and_then(|c| c["id"].as_i64())
+                .ok_or_else(|| anyhow::anyhow!("unknown category slug; use `geek forum categories` to list"))?;
+            let v: Value = f.post("/api/forum/threads", &json!({
+                "category_id": id, "title": title, "content": body, "content_format": "markdown"
+            })).await?;
+            emit(&v, fmt)
+        }
+        ForumCmd::Reply { thread_id, body, body_file, reply_to } => {
+            let body = read_body(body, body_file)?;
+            let mut payload = json!({ "thread_id": thread_id, "content": body, "content_format": "markdown" });
+            if let Some(r) = reply_to { payload["reply_post_id"] = json!(r); }
+            let v: Value = f.post("/api/forum/posts", &payload).await?;
+            emit(&v, fmt)
+        }
+        ForumCmd::Like { post_id } => {
+            let v: Value = f.post(&format!("/api/forum/posts/{post_id}/like"), &json!({})).await?;
+            emit(&v, fmt)
+        }
+        ForumCmd::DeleteThread { id } => {
+            f.delete(&format!("/api/forum/threads/{id}")).await?;
+            emit(&json!({ "ok": true, "deleted_thread": id }), fmt)
+        }
+        ForumCmd::DeletePost { id } => {
+            f.delete(&format!("/api/forum/posts/{id}")).await?;
+            emit(&json!({ "ok": true, "deleted_post": id }), fmt)
+        }
+        ForumCmd::PinThread { id, what, on } => {
+            let field = match what.as_str() {
+                "sticky" => "is_sticky",
+                "essence" => "is_essence",
+                "lock" => "is_locked",
+                _ => bail!("invalid --what"),
+            };
+            let v = f.patch(&format!("/api/forum/threads/{id}"), &json!({ field: if on { 1 } else { 0 } })).await?;
+            emit(&v, fmt)
+        }
+        ForumCmd::User { username } => {
+            let v: Value = f.get(&format!("/api/forum/users/{}", urlencoding::encode(&username))).await?;
+            emit(&v, fmt)
+        }
+        ForumCmd::Groups => {
+            let v: Value = f.get("/api/forum/groups").await?;
+            emit(&v, fmt)
+        }
+        ForumCmd::Users { q, role, page } => {
+            let mut qs: Vec<String> = vec![format!("page={page}")];
+            if let Some(s) = q { qs.push(format!("q={}", urlencoding::encode(&s))); }
+            if let Some(r) = role { qs.push(format!("role={r}")); }
+            let v: Value = f.get(&format!("/api/forum/admin/users?{}", qs.join("&"))).await?;
+            emit(&v, fmt)
+        }
+        ForumCmd::SetRole { user_id, role } => {
+            let v = f.patch(&format!("/api/forum/admin/users/{user_id}/role"), &json!({ "role": role })).await?;
+            emit(&v, fmt)
+        }
+        ForumCmd::Notifications => {
+            let v: Value = f.get("/api/forum/me/notifications").await?;
+            emit(&v, fmt)
+        }
     }
 }
 
