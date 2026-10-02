@@ -44,7 +44,7 @@ sid: ********
 | A. 本地回环回调 | `return_to` 白名单允许 `http://127.0.0.1:<port>`（手册 §2.1 同源白名单当前会拒绝） | `AuthMethod::Loopback`：起本地监听 → 用户浏览器完成登录 → 捕获 Set-Cookie |
 | B. CLI 一次性授权 | 新增 device flow / PKCE 交换端点，签发 `sid` 或 CLI 专用 token | `AuthMethod::CliToken` |
 
-命令面不变，只替换 `login` 的获取策略；后端就绪前不得在文档/提示中宣称可用。
+命令面不变，只替换 `login` 的获取策略；后端就绪前不得在文档/提示中宣称可用。 **评审定夺（issue #2）：本期不做**；后续若仍有需求，走 geek_main 的 issue 重新评估。
 
 ## 3. 存储：`session.json`
 
@@ -83,9 +83,9 @@ sid: ********
 
 - 请求头：`User-Agent: geek-cli/<版本> (<os>/<arch>)`；有会话时 `Cookie: sid=…`；`Accept: application/json`。
 - **禁止**：发 `Origin`（手册 §1.5：非 GET 带非本环境 Origin → 403 `invalid_origin`）；对无 body 的 POST/PUT/DELETE 发 `Content-Type`（Fastify 会按空 JSON 解析并 400，手册 §1.3）。
-- 重定向：`redirect::Policy::none()`，3xx 视为错误（API 不依赖重定向；`/auth/github` 是浏览器流程，CLI 不跟随）。
+- 重定向：API 请求一律 `redirect::Policy::none()`，3xx 视为错误（`/auth/github` 是浏览器流程，CLI 不跟随）。**唯一例外**：`geek self update` 的 Release 资产下载允许跟随 302（GitHub 资产跳 `objects.githubusercontent.com`），该请求不携带任何 Cookie 与凭据（见 04 §3）。
 - 超时：连接 5s、总 20s；`GEEK_TIMEOUT` 覆盖；`forum state` 允许更长（10 万级数据）。
-- 缓存提示：服务端对 `repos/repo`(60s)、`commits/issues/pulls`(30s)、`me/orgs`(120s) 有缓存（手册 §5.1/§2.4）→ 写后立刻读可能拿到旧值；CLI 如实呈现，不自行缓存、不绕过。
+- 缓存提示：服务端对 `repos/repo`(60s)、`commits/issues/pulls`(30s)、`me/orgs`(120s) 有缓存（手册 §5.1/§2.4）→ 写后立刻读可能拿到旧值；CLI 如实呈现，不自行缓存、不绕过。其中 `me/orgs` 的 120s 窗口**在组织成员变更时也不会失效**（评审补充）——`whoami` / `org list` 短时可能是旧数据，输出附取数时间戳提示。
 
 ### 5.1 重试矩阵（硬规则）
 
@@ -93,7 +93,8 @@ sid: ********
 |---|---|---|---|
 | `GET`/`HEAD`（读） | 重试 2 次（200ms→800ms） | 重试 2 次 | 不自动等待，报错并提示额度 |
 | `POST`/`PUT`/`PATCH`/`DELETE`（提交类） | 不重试 | 不重试 | 不重试 |
-| toggle 类（like/bookmark/follow/pin/close、view） | **永不重试**（语义是「切换」，重试=翻转两次） | 永不 | 永不 |
+| 真 toggle（`like`/`bookmark`/`follow`） | **永不重试**（重试=翻转两次） | 永不 | 永不 |
+| `pin`/`close`/`view`（幂等） | 可安全重试（`pin`/`close` 是显式目标状态、绝对赋值；`view` 按 IP+话题 1h 去重），默认仍不自动重试 | 可 | 不自动等待 |
 
 - 上游结果未知（手册 §3.3：`503 邀请结果待核对`）→ 停止并让人复核，禁止自动重试。
 - 429 区分 `rate_limited` 与 `guest_replies_paused`（手册 §6.3-5），错误消息里说明「等多久/改用登录」。
@@ -111,13 +112,15 @@ sid: ********
 | 2 | 用法错误 | 参数错误；非交互下需要确认而失败 |
 | 3 | 未登录 / 会话失效 | 401 `not_signed_in`、`session_expired`、`signin_required` |
 | 4 | 无权限 / 来源不符 | 403 `missing_capability`、`invalid_origin`、`forbidden`、`requires_org_admin`、`org_not_whitelisted` |
-| 5 | 不存在 | 404 |
-| 6 | 冲突 | 409 `status_changed`、`post_deleted`、`assignment_exists` 等 |
+| 5 | 不存在 | 404；**410 `legacy_forum_retired`（旧论坛路径已退役）** |
+| 6 | 冲突 | 409 `status_changed`、`post_deleted`、`assignment_exists`、`invite_pending_review`、`invite_unavailable`；**405（上游状态冲突，如 PR 不可合并）** |
 | 7 | 限流 | 429 |
-| 8 | 参数校验失败 | 400 / 413 / 415（含 `letter_required`、`empty_content`） |
+| 8 | 参数校验失败 | 400 / 413 / 415（含 `letter_required`、`empty_content`）；**422（上游参数/校验拒绝）** |
 | 9 | 上游 / 服务不可用 | 5xx、`internal_error`、`upstream_rejected`、网络失败、超时 |
 
-- 错误输出一律 stderr：`--format json` 时输出单行 `{"error","message","request_id","http_status"}`；`pretty/table` 时输出中文一行 + 可操作提示。`request_id` 保留并展示（报障凭据）。
+- 错误输出一律 stderr：`--format json` 时输出单行 `{"error","message","request_id","http_status"}`；`pretty/table` 时输出中文一行 + 可操作提示。`request_id` **为可选字段**（仅抛错路径与 `session_expired` 带；缺失时不显示，不伪造）。
+- 429 有两种形态：`rate_limited`（中文）与插件默认 `request_error`（英文；export.csv / assignments / join 三处，见 01 §8）——都按限流处理。
+- `merge_failed`（PR 合并失败）**不套统一错误体**，按 GitHub 实际状态码归类（405/409→6，422→8，5xx→9）。
 - 映射规则：先按 HTTP 状态定退出码，再保留机器码原文（不被抹平）；`upstream_rejected` 按其实际状态码归类。
 
 ## 7. 输出契约（人机双模）
@@ -125,7 +128,7 @@ sid: ********
 - **stdout 只放数据，stderr 只放提示/进度/更新通知**；JSON 模式不混任何人类文案。
 - 默认 `--format json`：单行 JSON，**与 API 手册同形状**——不重命名、不重组、不拆包（`.members`、`.repos`、`.state` 等保持原样；jq 路径 = 手册字段路径）。
 - `--format pretty`：缩进 JSON；`--format table`：人类投影（每命令定义列；不得发明字段、不得省略关键 ID；时间转北京时间）。列表类在 table 模式可省略冗余字段，JSON 模式不省。
-- 聚合命令例外：`whoami`、`status` 是 CLI 发明的多源合并对象，必须在文档与 `--help` 中列明来源（如 `{ "auth": …, "console": …, "orgs": … }`）。
+- 聚合命令例外：`whoami`、`status` 共用**同一形状**（写入 `--help` 与 03）：`{ "health"?, "auth", "console"?, "orgs"? }`——`console` 需控制台权限、`orgs` 需登录，缺省即省略；`orgs` 附 CLI 侧取数时间戳（对应服务端 120s 缓存窗口）。
 - 颜色仅 TTY；`NO_COLOR` / `--no-color` 关闭。
 - `--dry-run`：打印将发送的请求（方法、路径、body 摘要；`sid`、邀请 token 等敏感值脱敏），不实际发送、不产生副作用。
 - `--quiet`：仅数据，关闭提示与更新通知；`--verbose`：HTTP 层调试（含状态码与耗时，**不含**凭据）。

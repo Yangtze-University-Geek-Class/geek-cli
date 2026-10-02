@@ -3,10 +3,11 @@
 > 状态：current ｜ 更新：2026-10-02 ｜ 适用：`Yangtze-University-Geek-Class/geek-cli` 全体贡献者与 agent（人 + 机器一视同仁）。
 > 01–09 是与项目无关的通用方法；本文件把它落成 geek-cli 的具体参数，并列出不适用项与未做项。两者冲突时以本文件为准。
 > 事实来源：`Cargo.toml`、`src/**`、`.github/workflows/release.yml`、`install.sh`、`install.ps1`、`npm/**` 与 git 历史（截至 2026-10-02）。
+> 2026-10-02 按架构评审（issue #2）修订：§2/§3/§4 已切到 v2 口径（edition 2024、`GEEK_BASE`/`GEEK_SID`、v2 模块文档同步表）；标「v2」的行为在重写 PR 落地前以现状为准。
 
 ## §1 项目快照
 
-- 形态：Rust（edition 2021）单二进制 `geek`（crate `geek-cli`）；面向 agent 与命令行用户，默认 JSON 输出。
+- 形态：Rust 单二进制 `geek`（crate `geek-cli`）；面向 agent 与命令行用户，默认 JSON 输出。现状 edition 2021；**v2 重写目标 edition 2024 / MSRV 1.85**（评审通过，见 `docs/architecture/README.md` D10）。
 - 模块职责（改哪块看哪块）：
 
 | 路径 | 职责 |
@@ -26,7 +27,7 @@
 
 ## §2 工具链与验收入口（08 落地）
 
-- Rust stable + edition 2021；`Cargo.lock` 入库；所有构建（含发布）带 `--locked`。
+- Rust stable；`Cargo.lock` 入库；所有构建（含发布）带 `--locked`；edition 随 v2 升 2024（MSRV 1.85）。
 - PR 前本地验收入口，四步必须全过（本项目暂无单一脚本入口，此顺序即入口；现状 fmt / clippy 未过，属既有缺口，见 §7）：
 
 ```bash
@@ -46,18 +47,18 @@ cargo build --locked --release
 - 错误：一行、非零退出；状态码 → 文案的唯一实现处是 `gh.rs` / `forum.rs` 的 `check()`（401/403/404/422 等），新调用点必须复用，不得改写成模糊文案。权限由 GitHub / 论坛后端判定，403/404 原样上报，不做客户端绕过或盲目重试。
 - 破坏性操作必须显式确认标志（先例：`repo delete --yes`）。
 - 认证：统一 `config::require_token()`（`GEEK_TOKEN` 优先于本地 token 文件）；token 只落 `~/.config/geek/token.json`；任何输出（错误、日志、测试、issue / PR 评论）不得回显 token。
-- 环境变量（CLI 侧唯一清单）：`GEEK_TOKEN`、`GEEK_FORUM_BASE`（默认 `https://yangtzeu.work`）。`GEEK_VERSION` / `GEEK_INSTALL_DIR` 属安装脚本，不进 CLI 代码。
+- 环境变量（CLI 侧唯一清单，v2）：`GEEK_BASE`、`GEEK_SID`（链路变量 `GEEK_FORMAT` / `GEEK_TIMEOUT` / `GEEK_NO_UPDATE_CHECK` / `GEEK_DEBUG` 见 `docs/architecture/05` §A.2）。旧的 `GEEK_TOKEN` / `GEEK_FORUM_BASE` 随旧实现删除。`GEEK_VERSION` / `GEEK_INSTALL_DIR` 属安装脚本，不进 CLI 代码。
 - 命名与文案：子命令 kebab-case，同一能力不留第二别名；`--help` / about 英文、面向用户的错误与提示中文（现状即约定；改文案同 PR 同步 `SKILL.md` 与 `README.md`）。
 
 ## §4 文档跟着模块改（09 落地）
 
 | 改了什么 | 同一 PR 必须同步 |
 |---|---|
-| `src/cli.rs`（命令、参数、默认值） | `README.md`「命令一览」+ `SKILL.md` 对应示例 |
+| `src/commands/**`（命令、参数、默认值，v2） | `README.md`「命令一览」+ `SKILL.md` 对应示例 + `docs/architecture/03` |
+| `src/api/**`（端点、错误映射、重试矩阵，v2） | `docs/architecture/02` §5–§6 + `SKILL.md` Error handling |
+| `src/session.rs`、`src/config.rs`（会话、环境变量，v2） | `README.md`「鉴权与权限」「环境变量」+ `SKILL.md` Auth |
 | `src/output.rs`（格式行为） | `README.md`「输出格式」+ `SKILL.md` Output discipline |
-| `src/auth.rs`、`src/config.rs`（登录、token、环境变量） | `README.md`「鉴权与权限」「环境变量」+ `SKILL.md` Auth |
-| `src/gh.rs`（错误映射、分页） | `SKILL.md` Error handling + `README.md`「鉴权与权限」 |
-| `src/forum.rs`（论坛接口、默认 base） | `README.md` / `SKILL.md` 的 forum 章节 |
+| `src/update.rs`（自更新，v2） | `docs/architecture/04` + `README.md`「安装」 |
 | `Cargo.toml` `version` | 发版时与 tag 一致（§5） |
 | `.github/workflows/`、`install.sh`、`install.ps1`、`npm/**` | `README.md`「安装」+ `npm/README.md` |
 
@@ -97,8 +98,8 @@ cargo build --locked --release
 
 | # | 未做 | 影响 | 待办 |
 |---|---|---|---|
-| 1 | `stage` 分支与不变量检查 | 双分支模型未生效，PR 暂指向 `main` | 管理员建 `stage` + 分支保护（禁直推 `main`、关 squash/rebase）；本地/CI 检查待建 |
-| 2 | PR CI（fmt / clippy / test / build） | 门禁只在本地，远端无人拦 | 新增 `.github/workflows/ci.yml`，汇总为一个 required check |
+| 1 | `stage` 分支与不变量检查 | 双分支模型未生效，PR 暂指向 `main` | 所有者已建 `main` ruleset（PR + CODEOWNERS 批准 + 禁 force-push/删除）；`stage` 建立前维持 §6 过渡期，不自行改分支模型 |
+| 2 | PR CI（fmt / clippy / test / build） | 门禁只在本地，远端无人拦 | **已排入 P0**（`docs/architecture/06` §4）：新增 `.github/workflows/ci.yml`，汇总为一个 required check |
 | 3 | 发布前 tag ↔ `Cargo.toml` 版本校验 | 只能人工核对 | 加到 release workflow |
 | 4 | 测试 | `src/` 无测试，回归靠人工 | 随行为变更逐个补（§2） |
 | 5 | task / worktree / notes 脚本与 `notes/INDEX.md` 生成 | 手工执行、人工核对 | 按需引入，输出格式必须与 01 / 05 一致 |

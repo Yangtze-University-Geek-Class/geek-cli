@@ -33,7 +33,7 @@ geek self update [--check] [--version vX.Y.Z] [--force]
 1. 解析目标：默认 latest；`--version` 指定 tag；`--check` 只汇报（含当前/最新/渠道/安装方式）。
 2. 渠道识别（§1）：非 self-managed 且无 `--force` → 退出码 4，打印对应包管理器命令。
 3. 目标平台：编译期 `TARGET`（构建注入）；资产名 `geek-<target>[.exe]`（与 release.yml 现状一致）。
-4. 下载 `geek-<target>` 与同名 `.sha256`（GET 可重试 ≤3 次，指数退避）；**sha256 必验、缺失即失败**（fail closed）。
+4. 下载 `geek-<target>` 与同名 `.sha256`（GET 可重试 ≤3 次，指数退避）；**sha256 必验、缺失即失败**（fail closed）。下载**允许跟随 302**（GitHub 资产跳 `objects.githubusercontent.com`；这是 02 §5「不跟随重定向」的唯一例外），该请求不带任何 Cookie/凭据。
 5. 备份：当前 exe 复制为 `geek.old`（同目录）。
 6. 原子替换：同目录临时文件 → Unix `rename` 覆盖；Windows 运行中的 exe 不可覆盖，采用 self-replace 类方案（重命名旧文件后就位新文件）。
 7. 自检：运行 `geek --version` 确认新二进制可执行；失败 → 自动回滚到 `geek.old` 并报错退出码 1。

@@ -84,7 +84,7 @@
 | `forum user <name>` | 删除 | 用 `forum search <q>` 或 `state.users` | API 无按名查用户 |
 | `forum groups / users / set-role / new-teacher / teacher-overview` | **删除** | — | 新 API 无这些概念（角色体系=称号+能力，见手册 §4/§8） |
 | `dashboard` | 保留 | 打开 `<base>/console` | 可扩展 `geek open` |
-| — | 新增 | `console *`、`application *`、`feedback *`、`join *`、`self *` | 见 03 全量表 |
+| — | 新增 | `console *`（含 `console application *` / `console feedback *`）、`join *`、`self *` | 见 03 全量表；家族名以 `console` 为前缀，不存在顶层 `application` / `feedback` 命令 |
 
 ## 6. 版本与兼容策略
 
@@ -98,3 +98,20 @@
 - 实现 PR 附「命令 → API 手册章节」对照（本文件 §5 表中可回溯）。
 - 对读命令：本机对正式环境跑一遍，输出与手册字段逐一核对（人工）。
 - 对写命令：预发布环境（`prev.yangtzeu.work`）实测 + `--dry-run` 快照；不拿正式环境做试验。
+
+## 8. 服务端实测差异（评审补充，2026-10-02）
+
+> 来源：@Crosery 在 issue #2 的评审（已核对 geek_main 源码）。API 手册对应条目由 geek_main 侧修复；**CLI 实现一律按服务端真实行为**。
+
+| # | 手册写法 | 真实行为 |
+|---|---|---|
+| 1 | `state` 的 `follows` 只有自己 | `follows` **全量公开**；仅 `bookmarks` / `notifications` 按 viewer 过滤 |
+| 2 | 429 → `rate_limited` | `applications/export.csv`、`POST /api/console/assignments`、`POST /api/join/:token` 是插件默认 `request_error` + 英文文案；CLI 两种都要处理 |
+| 3 | 错误体统一带 `request_id` | 仅抛错路径与 `session_expired` 带；`missing_capability`、邀请链接 404、members / teams / org / feedback 的部分响应不带 → `request_id` 视为**可选** |
+| 4 | `POST /api/join/:token` 只有 404/400/503 | 另有 **409 `invite_pending_review` / `invite_unavailable`** |
+| 5 | 帖子摘要 ≤200 字 | 实际 200 + 省略号 = **201 字符** |
+| 6 | 长度按 UTF-16 计数 | 路由内是 UTF-16，**schema `maxLength` 按码点**（Ajv 默认）→ 客户端校验按码点更安全 |
+| 7 | `/repos/:repo/issues` 只写 `?state=` | 还接受 `per_page` 但被忽略（写死 50） |
+| 8 | 未收录 410 通配路径 | `/api/forum` 未注册旧路径、`/auth/forum/*`、`/forum/u/*` 返回 **410 `legacy_forum_retired`**；所有响应另带安全头 |
+
+- `org_not_whitelisted` 在生产/预发布**不会触发**（两环境 `ALLOWED_ORGS` 为空）——不要把它当常态探测手段。

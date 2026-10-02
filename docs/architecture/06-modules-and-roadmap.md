@@ -54,7 +54,7 @@ src/
 | `api::Client` | mock server：路径、请求头（无 `Origin`、无空 `Content-Type`）、错误 → 退出码、重试次数、3xx 不跟随 |
 | session/config | 临时 HOME：0600、原子写、多 base 隔离、`GEEK_SID` 优先级与不落盘 |
 | PoW | 已知向量（难度 1–4）、时间偏差边界 |
-| output | 快照：JSON 透传字段与手册一致；table 投影稳定；脱敏（`sid`、token 不出现） |
+| output | 快照：JSON 透传字段与手册/01 §8 实测一致；table 投影稳定；脱敏（`sid`、token 不出现） |
 | commands | `assert_cmd` 跑二进制：退出码、`--dry-run`、非 TTY 下确认失败（码 2） |
 | update | 本地假 Release 服务（04 §8）：成功/校验失败/中断/回滚/渠道识别 |
 | 真机 | 预发布环境只读冒烟（`status`、`org list`、`repo list`）；写命令只在预发布演练 |
@@ -63,9 +63,9 @@ src/
 
 | 阶段 | 交付 | 验收（完成判据） |
 |---|---|---|
-| **P0 底座** | `session/transport/output/error/pow` 骨架 + `login/logout/whoami/status` + `org list/show` + `repo list/show/tree/file/commits/issues/prs` + `health` | ①`geek login` 导入 `sid` 后 `status` 全绿；②读命令输出与手册字段一致（人工核对一次正式环境）；③契约测试与退出码测试通过 |
+| **P0 底座** | `session/transport/output/error/pow` 骨架 + `login/logout/whoami/status` + `console me` + `org list/show` + `repo list/show/tree/file/commits/issues/prs` + `health` + **`.github/workflows/ci.yml`**（fmt/clippy/test/build，汇总为一个 required check） | ①`geek login` 导入 `sid` 后 `status` 全绿；②读命令输出与手册/服务端实测（01 §8）一致（人工核对一次正式环境）；③契约测试与退出码测试通过并在 `ci.yml` 上运行 |
 | **P1 治理** | `console *`（me/summary/catalogue/people/audit/assignment/application/feedback 读 + review/回复/删除写）+ admin 写（成员/团队/仓库/PR 合并/评论/组织资料） | ①`missing_capability`/`requires_org_admin` 映射到码 4；②危险操作缺 `--yes` 在非 TTY 下码 2；③`application review` 防陈旧（`expected_*`）实现且有测试 |
-| **P2 论坛与邀请** | `forum *` 全量 + `join info/redeem` + `link *` | ①游客 PoW 回复成功（预发布）；②`changes` 增量解析不重拉 state；③toggle 重试次数=0 的测试通过；④Turnstile 环境报错清晰 |
+| **P2 论坛与邀请** | `forum *` 全量 + `join info/redeem` + `link *` | ①游客 PoW 回复成功（预发布）；②`changes` 增量解析不重拉 state；③真 toggle（like/bookmark/follow）重试次数=0、`pin`/`close`/`view` 幂等重试安全的测试通过；④Turnstile 环境报错清晰 |
 | **P3 自更新与打磨** | `self update/check/rollback` + 渠道识别 + `update.mode=auto` + README/SKILL 重写 + npm/install 对齐 | ①从 P0 版本升级到 P2 版本并可回滚；②npm/cargo 渠道拒绝并提示正确；③`SKILL.md` 与 `README.md` 同 PR 更新（`docs/10` §4） |
 
 ## 5. 风险与对策
@@ -85,3 +85,4 @@ src/
 - 落地流程照 `docs/01–09`：先 issue → `task/<issue>/<slug>` 分支 → PR 九段 → `notes/` 执行记录；agent 入口 `AGENTS.md`。
 - 命令面/输出契约变更：同步 [03](03-command-surface.md) + `README.md` + `SKILL.md`（`docs/10` §4）。
 - 架构决策变更：改本目录并标注原因；`accepted` → 改行为前先改文档。
+- `docs/10-geek-cli.md` 已随本次评审修订（v2 口径）；`README.md` / `SKILL.md` 的 v2 重写随实现 PR（P3）。

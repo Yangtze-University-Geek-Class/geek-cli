@@ -28,8 +28,8 @@
 |---|---|---|---|
 | `geek login [--sid-stdin\|--sid]` | `GET /auth/me` | 导入 `sid` 并校验（02 §2） | P0 |
 | `geek logout` | `POST /auth/signout` | 尽力登出 + 清本地 | P0 |
-| `geek whoami` | `/auth/me` + `/api/console/me` | 聚合身份（附 `sources`） | P0 |
-| `geek status` | `/healthz` + `/auth/me` + 可选 `/api/console/me` | 连通性/会话/能力自检；`--json` 输出分项 | P0 |
+| `geek whoami` | `/auth/me` + `/api/console/me` + `/api/me/orgs` | 聚合身份；形状 `{health?, auth, console?, orgs?}`（与 `status` 同一份，见 02 §7） | P0 |
+| `geek status` | `/healthz` + `/auth/me` + `/api/console/me` + `/api/me/orgs` | 连通性/会话/能力自检；同一聚合形状（含 `health`） | P0 |
 | `geek dashboard [<org>]` | — | 浏览器打开控制台 | P1 |
 
 ## 4. B 域 · GitHub 组织（`/api/admin/:org/*`，手册 §5）
@@ -110,9 +110,9 @@
 | `geek forum reply <t-id> (--body\|--body-file) [--reply-to <p-id>] [--guest-name <名>]` | `POST …/posts` | 无会话 + `--guest-name` → 本地 PoW；Turnstile 启用时明确报错 | P2 |
 | `geek forum edit <p-id> (--body\|--body-file)` | `PATCH …/posts/:id` | 作者或版务 | P2 |
 | `geek forum delete <p-id> [--yes]` | `DELETE …/posts/:id` | 软删；首帖不可删 | P2 |
-| `geek forum like <p-id>` / `bookmark <p-id>` / `follow <user-id>` | `POST …/like|bookmark|users/:id/follow` | toggle；永不重试（02 §5.1） | P2 |
-| `geek forum pin <t-id> [--off]` / `close <t-id> [--off]` | `POST …/topics/:id/pin|close` | 能力门；`--off` 反向 | P2 |
-| `geek forum view <t-id>` | `POST …/topics/:id/view` | 显式计数；`topic` 不自动计 | P2 |
+| `geek forum like <p-id>` / `bookmark <p-id>` / `follow <user-id>` | `POST` 切换类：`/posts/:id/like`、`/posts/:id/bookmark`、`/users/:id/follow` | 真 toggle；永不重试（02 §5.1） | P2 |
+| `geek forum pin <t-id> [--off]` / `close <t-id> [--off]` | `POST …/topics/:id/pin`、`…/close` | 能力门；`--off` 反向；显式目标状态、幂等 | P2 |
+| `geek forum view <t-id>` | `POST …/topics/:id/view` | 显式计数（服务端按 IP+话题 1h 去重，幂等）；`topic` 不自动计 | P2 |
 | `geek forum notifications [--limit]` | `state.notifications` | 仅自己 | P2 |
 | `geek forum read <n-id>` / `read-all` | `POST …/notifications/:id/read|/read-all` | | P2 |
 | `geek forum profile set [--display-name --bio --location --website --notify-reply --notify-like --notify-follow]` | `PATCH …/me/profile` | 至少一项 | P2 |
@@ -123,7 +123,7 @@
 | 命令 | 接口 | 说明 | 阶段 |
 |---|---|---|---|
 | `geek join info <token>` | `GET /api/join/:token` | 匿名；`valid`/`reason` | P2 |
-| `geek join redeem <token> (--login X\|--email Y) [--note]` | `POST /api/join/:token` | 本地算 PoW；蜜罐字段不暴露；`turnstile_site_key` 非空时报错并提示走浏览器 | P2 |
+| `geek join redeem <token> (--login X\|--email Y) [--note]` | `POST /api/join/:token` | 本地算 PoW；蜜罐字段不暴露；`turnstile_site_key` 非空时报错并提示走浏览器；409 分 `invite_pending_review` / `invite_unavailable`，按冲突（退出码 6）处理 | P2 |
 | `geek health` | `GET /healthz` | 也可用 `geek status` | P0 |
 
 ## 8. F 域 · 升级与自身
