@@ -131,6 +131,12 @@ runai install Yangtze-University-Geek-Class/geek-cli
 |---|---|
 | `GEEK_TOKEN` | 跳过本地 token 文件，临时用指定 token（CI 友好） |
 
+## 开发与协作
+
+- 协作规范入口：[`docs/README.md`](docs/README.md)（通用方法 01–09）
+- 本项目专属规则（工具链与验收入口、CLI 契约、文档同步对照、发版流程、未做项）：[`docs/10-geek-cli.md`](docs/10-geek-cli.md)
+- AI agent 入口：[`AGENTS.md`](AGENTS.md)
+
 ## License
 
 MIT
