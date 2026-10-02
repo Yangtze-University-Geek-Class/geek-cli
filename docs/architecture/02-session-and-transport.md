@@ -121,6 +121,8 @@ sid: ********
 - 错误输出一律 stderr：`--format json` 时输出单行 `{"error","message","request_id","http_status"}`；`pretty/table` 时输出中文一行 + 可操作提示。`request_id` **为可选字段**（仅抛错路径与 `session_expired` 带；缺失时不显示，不伪造）。
 - 429 有两种形态：`rate_limited`（中文）与插件默认 `request_error`（英文；export.csv / assignments / join 三处，见 01 §8）——都按限流处理。
 - `merge_failed`（PR 合并失败）**不套统一错误体**，按 GitHub 实际状态码归类（405/409→6，422→8，5xx→9）。
+- 评审补充映射（显式）：**410 → 5、405 → 6、422 → 8**。
+- 服务端承诺（评审 2026-10-02）：已发布接口的 `error` 机器码**新增可以、改名/删除须先公告**并附版本说明；CLI 退出码映射依赖此约定。
 - 映射规则：先按 HTTP 状态定退出码，再保留机器码原文（不被抹平）；`upstream_rejected` 按其实际状态码归类。
 
 ## 7. 输出契约（人机双模）

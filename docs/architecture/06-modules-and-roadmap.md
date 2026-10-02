@@ -2,7 +2,7 @@
 
 > 状态：`accepted` · 更新：2026-10-02 · 适用范围：实现者（geek-cli v2 编码工作）。
 > 事实来源：现行 `src/` 结构、[01](01-facts-and-migration.md)–[05](05-integration-and-security.md)、`docs/10` 工程规则。
-> 约束与验证：模块依赖方向不允许反向；每期验收标准（§4）逐条可查；测试矩阵（§3）进 CI 后为 required check（`docs/10` §7-2）。
+> 约束与验证：模块依赖方向不允许反向；每期验收标准（§4）逐条可查；测试矩阵（§3）随 P0 的 `ci.yml` 落地后成为 required check（`docs/10` §7-2）。
 
 ## 1. 目标模块结构
 
