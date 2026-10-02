@@ -83,6 +83,7 @@ src/
 ## 6. 与协作规则的衔接
 
 - 落地流程照 `docs/01–09`：先 issue → `task/<issue>/<slug>` 分支 → PR 九段 → `notes/` 执行记录；agent 入口 `AGENTS.md`。
+- PR 合并门禁：ruleset `main: PR gate`（≥1 批准 + CODEOWNERS `@Crosery` 批准，禁 force-push / 删除 `main`）；合并由所有者执行，agent 不合并（`docs/10` §6）。
 - 命令面/输出契约变更：同步 [03](03-command-surface.md) + `README.md` + `SKILL.md`（`docs/10` §4）。
 - 架构决策变更：改本目录并标注原因；`accepted` → 改行为前先改文档。
 - `docs/10-geek-cli.md` 已随本次评审修订（v2 口径）；`README.md` / `SKILL.md` 的 v2 重写随实现 PR（P3）。

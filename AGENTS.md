@@ -11,7 +11,8 @@
 
 ## 硬门禁（摘要，细则全在 docs/）
 
-- 改动前先有 issue；分支用 `task/<issue>/<slug>`，禁止直接向 `main` 提交（过渡期约定见 10 §6）。
+- 改动前先有 issue；分支用 `task/<issue>/<slug>`，禁止直接向 `main` 提交。
+- `main` 受 ruleset `main: PR gate` 保护：必须开 PR 且拿到 ≥1 批准 + CODEOWNERS（`@Crosery`）批准；**agent 只推分支、开 PR，不合并 PR、不改 ruleset / CODEOWNERS / 分支模型**；`stage` 模型暂不适用（10 §6）。
 - 提交前本地四步全过：`cargo fmt --all -- --check` → `cargo clippy --all-targets --locked -- -D warnings` → `cargo test --locked` → `cargo build --locked --release`（10 §2）。
 - CLI 面或行为变更必须同 PR 同步 `README.md` 与 `SKILL.md`（10 §4 对照表）。
 - 创建 / 推送 / 移动任何发布 tag 需所有者对具体版本号授权——agent 不得自行打 tag（10 §5）。
