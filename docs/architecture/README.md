@@ -56,6 +56,7 @@
 | [04-update-and-distribution.md](04-update-and-distribution.md) | 版本自检、`geek self update`、回滚、渠道识别、分发矩阵 |
 | [05-integration-and-security.md](05-integration-and-security.md) | 链路对接协议（CI / agent / 脚本）、安全治理与威胁模型 |
 | [06-modules-and-roadmap.md](06-modules-and-roadmap.md) | 代码模块图、技术选型、测试策略、P0–P3 分期与验收标准 |
+| [07-open-questions.md](07-open-questions.md) | **待定 / 待确认 / 暂缓事项登记表**（含所有者待确认项；新不确定事项先记这里） |
 
 ## 5. 分期路线图（摘要，详见 06 §4）
 
@@ -83,3 +84,4 @@
 - **不做**：旧命令 shim、PAT/Device flow 兼容、未收录接口（官网投递、公开意见墙、dev 快照）、绕过服务端能力门。
 - **待后端（proposed，评审定夺：本期不做）**：CLI 专用登录通道（loopback 白名单或 CLI token，02 §2.2；`GEEK_SID` / `--sid-stdin` 已覆盖 CI 与 agent）；发布元数据接口（不做，自更新继续走 GitHub Releases）。
 - **只读**：`docs/api-forum-console.md` 不得修改；发现不符即停手报告。
+- **登记表**：全部待定 / 待确认 / 暂缓事项（含上述 proposed 项的当前状态）汇总于 [07-open-questions.md](07-open-questions.md)；新增不确定事项先记那里。
