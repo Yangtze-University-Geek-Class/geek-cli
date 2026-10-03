@@ -48,7 +48,7 @@
 
 - 各接口限流以手册为准（§4.2 控制台、§6.3 论坛、§8.7 常量）；CLI **默认串行、不并发扇出**。
 - 常用额度提醒：`application export` 5 次/分钟；成员发帖 10/分钟、回复 30/分钟；游客回复 5/分钟+30/天/IP；`state` 120/分钟/IP。
-- 429 分类处理：`rate_limited`、`guest_replies_paused`（全站上限，改用登录或稍后），以及**插件默认 `request_error` + 英文文案**（export.csv / assignments / join 三处；评审已确认，geek_main 后续统一）——三者都按限流处理。
+- 429 分类处理：`rate_limited`（#191/#197 起统一形状）、`guest_replies_paused`（全站上限，改用登录或稍后）、`apply_limited`（官网投递，未收录）——都按限流处理；旧 `request_error` 形态已随修复移除，遗留部署若仍返回按限流兜底。
 - 批量场景建议：链路按 `--limit`/分页串行拉取，两次请求间隔 ≥ 手册额度倒数；不要循环 `repo show`（服务端有 60s 缓存，重复读没有收益）。
 - 错误体 `request_id` 可能缺失（仅部分路径带，见 02 §6）——链路不得假设其存在。
 

@@ -1,13 +1,13 @@
 # 01 · 事实基座与旧实现处置
 
 > 状态：`accepted` · 更新：2026-10-02 · 适用范围：geek-cli 重构（对接 `yangtzeu.work` 核心服务）。
-> 事实来源：[`docs/api-forum-console.md`](../api-forum-console.md)（**只读**，接口唯一真相）；本章只记结论与处置，不复制字段细节（规则单源）。
+> 事实来源：[`docs/api-forum-console.md`](../api-forum-console.md)（接口唯一真相；由 geek-cli 侧按 admin 侧 `API.md` 同步维护）；本章只记结论与处置，不复制字段细节（规则单源）。
 > 约束与验证：实现 PR 的每条命令映射必须能指回手册章节；不一致时以手册为准，停手报告，不按旧代码猜。
 
 ## 1. 唯一真相与协作约束
 
 - 接口路径、请求/响应字段、错误码、限流、编号格式，一律以 API 手册为准；本目录不重述。
-- API 手册**只读**：要改接口行为，改 `geek_main` 后端并更新手册（由 geek_main 流程负责）。CLI 侧发现手册与实测不符 → 记录证据、停手报告，不自行绕过。
+- API 手册由 **geek-cli 侧维护**（2026-10-03 交接）：按 admin 侧 `docs/architecture/API.md` 同步，冲突以 admin 为准；要改接口行为仍改后端。CLI 侧发现手册与实测不符 → 记录证据并同步手册（交叉验证）。
 - 旧代码、旧 README、旧 SKILL.md 中与手册冲突的表述一律视为**过期**，在当前重构中直接替换。
 
 ## 2. 服务面概览（按域）
@@ -99,19 +99,21 @@
 - 对读命令：本机对正式环境跑一遍，输出与手册字段逐一核对（人工）。
 - 对写命令：预发布环境（`prev.yangtzeu.work`）实测 + `--dry-run` 快照；不拿正式环境做试验。
 
-## 8. 服务端实测差异（评审补充，2026-10-02）
+## 8. 服务端行为备忘（2026-10-03 已同步进手册）
 
-> 来源：@Crosery 在 issue #2 的评审（已核对 geek_main 源码）。API 手册对应条目由 geek_main 侧修复；**CLI 实现一律按服务端真实行为**。
+> 来源：issue #2 评审 + @Crosery 2026-10-03 交接（admin 候选 `task/190/api_doc_drift@e01ed5a`，实现基线 stage `df4db703`）。以下条目**已同步进 `docs/api-forum-console.md`**；本表保留为 CLI 实现核对清单。
 
-| # | 手册写法 | 真实行为 |
+| # | 点 | 服务端行为（手册已同步） |
 |---|---|---|
-| 1 | `state` 的 `follows` 只有自己 | `follows` **全量公开**；仅 `bookmarks` / `notifications` 按 viewer 过滤 |
-| 2 | 429 → `rate_limited` | `applications/export.csv`、`POST /api/console/assignments`、`POST /api/join/:token` 是插件默认 `request_error` + 英文文案；CLI 两种都要处理 |
-| 3 | 错误体统一带 `request_id` | 仅抛错路径与 `session_expired` 带；`missing_capability`、邀请链接 404、members / teams / org / feedback 的部分响应不带 → `request_id` 视为**可选** |
-| 4 | `POST /api/join/:token` 只有 404/400/503 | 另有 **409 `invite_pending_review` / `invite_unavailable`** |
-| 5 | 帖子摘要 ≤200 字 | 实际 200 + 省略号 = **201 字符** |
-| 6 | 长度按 UTF-16 计数 | 路由内是 UTF-16，**schema `maxLength` 按码点**（Ajv 默认）→ 客户端校验按码点更安全 |
-| 7 | `/repos/:repo/issues` 只写 `?state=` | 还接受 `per_page` 但被忽略（写死 50） |
-| 8 | 未收录 410 通配路径 | `/api/forum` 未注册旧路径、`/auth/forum/*`、`/forum/u/*` 返回 **410 `legacy_forum_retired`**；所有响应另带安全头 |
+| 1 | 关注关系可见性 | `follows` 全站公开（游客也拿到全部）；只有 `bookmarks` / `notifications` 按 viewer 过滤；「我关注的」按 `followerId === viewer.userId` 筛 |
+| 2 | 429 | 路由级限流统一 `{ error: "rate_limited", message: "操作太频繁，请稍后再试", request_id }`（admin#191 / PR #197 已并入 stage）；业务上限 `guest_replies_paused`、`apply_limited` 保留；旧的 `request_error` 例外**已移除** |
+| 3 | `request_id` | 只在统一错误处理器输出中有；直接 `send` 的错误没有。join 的 Schema 失败 = 400 `validation_error` + Ajv 英文 message + `request_id`；路由自判的 400/404/503 = `{ error: <中文句子> }` 无 `request_id`；Fastify 自身拒绝（空 JSON body）= Fastify 错误码 + 英文 |
+| 4 | join 冲突 | 另有 409 `invite_unavailable`（禁用/过期/次数用完）与 `invite_pending_review`（结果未定，不自动重试）；体 `{ error, message, request_id }`，message 与 error 相同 |
+| 5 | 摘要长度 | 帖子 `excerpt`：>200 UTF-16 码元截前 200 + 「…」，最长 **201**；控制台 `strengths_excerpt` 同理，最长 **121** |
+| 6 | 长度数法 | 双层：Schema `maxLength` 按 Unicode 码点、路由 `String.length` 按 UTF-16，两层都判的都要满足（游客回复正文/昵称、成员昵称、标签名、搜索词按 UTF-16） |
+| 7 | issues / pulls | `octokit.paginate` 每页 50 取完、不分页；`per_page`（超 999 → 400）与 `page` 在这两个接口**不起作用**；分页参数只对 `commits` 生效 |
+| 8 | 旧路径与响应头 | 未注册旧路径（`/api/forum/*`、`/auth/forum/*`、`/forum/u/*`、`DELETE /api/forum/state`）→ 410 `legacy_forum_retired`（无 `request_id`）；`HEAD /api/forum/state` → 405；每个响应带 `nosniff` / `X-Frame-Options: DENY` / `Referrer-Policy: strict-origin-when-cross-origin` |
+| 9 | security 端点 | 付费组织取 Dependabot 告警失败仍 200，`alerts` 空、`dependabot.error` 为 Octokit message 原文（不脱敏）；`merge_failed` 沿用上游状态码与 message 的说明原本已对，未变 |
 
 - `org_not_whitelisted` 在生产/预发布**不会触发**（两环境 `ALLOWED_ORGS` 为空）——不要把它当常态探测手段。
+- admin 侧遗留：文档门禁 `admin#198`、forum contracts 长度注释 `admin#199`（等所有者决定，见 [`07`](07-open-questions.md) §B）。

@@ -1,9 +1,11 @@
 # 极客班论坛与控制台 · 接口使用手册（geek-cli 对接用）
 
-> 状态：`current` · 整理日期：2026-10-02 · 事实来源：`geek_main` 仓库现行代码
+> 状态：`current` · 整理日期：2026-10-02 · **更新：2026-10-03**（按 admin 候选文档 `task/190/api_doc_drift@e01ed5a` 与 #191 / PR #197 的 429 修复同步 §1.3 / §1.4 / §3.3 / §5.3 / §6.2 / §6.3；实现基线 stage `df4db703`）。
+> 事实来源：`geek_main` 仓库现行代码
 > （`app/server/src/routes/console/**`、`app/server/src/routes/forum-api/**`、`app/server/src/routes/admin/**`、
 > `app/server/src/routes/portal/{org,join}.ts`、`app/server/src/middleware/**`、`app/server/src/lib/roles.ts`、
 > `app/server/src/lib/forum-rules.ts`、`docs/architecture/API.md`）。
+> 维护：geek-cli 侧按 admin 侧 `docs/architecture/API.md` 同步，冲突以 admin 为准（issue #2 交接，2026-10-03）。
 > 收录范围：登录与会话（§2）、公共接口：配置 / PoW / 邀请链接（§3）、控制台（§4）、GitHub 组织接口（§5）、论坛（§6）、
 > 探活与只读文本（§7）；取舍说明见 [§9](#9-取舍与未收录)。
 
@@ -50,9 +52,9 @@
 
 - 请求/响应一律 JSON（唯一例外：论坛头像上传/下载，见 §6）。
 - **未知字段会被拒绝**：控制台所有 body 与 query、论坛所有 body 都开 `additionalProperties: false`（多一个字段 → `400 validation_error`）；论坛的读接口（`state`/`topics/:id/posts`/`search`）不校验多余 query。
-- 长度按 UTF-16 字符数（与 JS `String.length` 一致）。
+- 长度分两层校验：Schema（Ajv 的 `minLength`/`maxLength`，`unicode` 保持默认）按 **Unicode 码点**（星平面字符算 1）；路由自判长度按 **UTF-16 码元**（`String.length`，星平面字符算 2）。两层都判的字段**两个上限都要满足**（例：标题 120 码点可含 120 个表情；游客回复正文按 UTF-16 数 2000，1001 个表情即 `content_too_long`）。按 UTF-16 数的还有：游客昵称 20 / 成员昵称 30（都先 NFKC 且 trim）、新建标签名 20（trim 后）、搜索词 100（trim 后）。
 - 不带请求体的 POST（点赞、收藏、关注、浏览、已读）**不要发 `Content-Type: application/json` 的空 body**——Fastify 会按空 JSON 解析并拒绝（400）。CLI 干脆不发 body、不发 Content-Type。
-- 响应头：`/api/*` 与 `/auth/*` 一律 `Cache-Control: no-store`；唯一例外是论坛头像 `GET /api/forum/avatars/<hash>.webp` 的 200（长期缓存）。
+- 响应头：`/api/*` 与 `/auth/*` 一律 `Cache-Control: no-store`；唯一例外是论坛头像 `GET /api/forum/avatars/<hash>.webp` 的 200（长期缓存）；server 的每个响应（含错误、404 与静态文件）另带 `X-Content-Type-Options: nosniff`、`X-Frame-Options: DENY`、`Referrer-Policy: strict-origin-when-cross-origin`（只描述 server 本身，不声称已验证部署代理链）。
 - 资源编号：`/api/console/*` 里名叫 `:id` 的参数是数字（如意见箱 id、指派 id）；投递 id 叫 `:application_id` 且是 UUID；论坛编号是字符串（见 §1.6）。
 
 ### 1.4 错误模型
@@ -63,18 +65,23 @@
 { "error": "<机器码>", "message": "<中文，可直接展示>", "request_id": "<请求 id>" }
 ```
 
+> 形状有例外：`request_id` 只在经统一错误处理器输出的错误里出现（路由抛错、Schema 校验失败、限流、Fastify 自身拒绝、GitHub 上游错误、`session_expired`）；**直接 `send` 的错误没有**——如 401 `not_signed_in`（只有 `error`）、403 `invalid_origin` / `missing_capability` / `org_not_whitelisted` / `not_a_member_of_org` / `requires_org_admin`、410 `legacy_forum_retired`、413 `avatar_too_large`，以及 `/api/join/:token` 路由自判的 400/404/503（`{ error: <中文句子> }`，`error` 不是机器码）。join 的 Schema 校验失败是另一形状：400 `{ error: "validation_error", message: <Ajv 英文>, request_id }`；Fastify 自己拒绝的请求（如空 JSON body）`error` 是 Fastify 错误码（如 `FST_ERR_CTP_EMPTY_JSON_BODY`）、`message` 英文。**不要假设 `error` 恒为机器码、`message` 恒为中文。**
+
 | HTTP | 含义 | 典型机器码 |
 |---|---|---|
 | 400 | 参数/校验失败 | `validation_error`（提示写明哪个字段）；业务码如 `invalid_status`、`letter_required`、`empty_content` |
 | 401 | 未登录/会话失效 | `not_signed_in`、`session_expired`、`signin_required`（论坛成员操作） |
 | 403 | 没有权限或来源不符 | `missing_capability`（控制台，附带 `capability`、`any_of`、可选 `reason`）、`invalid_origin`、`forbidden`、`admiral_required`、`out_of_department_scope` |
 | 404 | 资源不存在 | `not_found` |
+| 410 | 旧接口已停用 | `legacy_forum_retired`（无 `request_id`；见 §6.3 注） |
 | 409 | 冲突 | `status_changed`、`post_deleted`、`assignment_exists`、`department_exists`、`captain_transfer_required` |
 | 413 / 415 | 请求体超限 / Content-Type 不支持 | `avatar_too_large`、`unsupported_media_type` |
-| 429 | 限流 | `rate_limited`、`guest_replies_paused`（论坛游客全站上限） |
+| 429 | 限流 | 路由级统一 `rate_limited`（见下）；业务上限 `guest_replies_paused`（论坛游客全站） |
 | 5xx | 服务异常 | `internal_error`（脱敏，不暴露上游原文）；GitHub 上游 4xx 映射为 `upstream_rejected` |
 
 - GitHub 上游错误统一映射，不回显上游原文；上游 5xx/无状态码一律脱敏为 5xx `internal_error`。
+- **429 约定**：路由级限流统一为 `{ error: "rate_limited", message: "操作太频繁，请稍后再试", request_id }`（admin#191/#197 起；join / export.csv / assignments / feedback 等一致）；业务上限另用专属机器码（本手册涉及 `guest_replies_paused`；`apply_limited` 属未收录的官网投递）。
+- 两处按设计回上游原文：`PUT …/pulls/:n/merge` 失败的 `merge_failed`（沿用上游状态码）与 `GET …/security` 的 `dependabot.error`（Octokit message）。
 - 控制台缺能力时 `403 missing_capability` 体里：`capability` 是 `any_of[0]`，`reason` 只在被 GitHub 上限挡掉时出现（`github_admin_required` / `github_membership_required`），`message` 形如「需要「查看投递」权限」。
 
 ### 1.5 写请求的来源校验（CLI 重点）
@@ -213,6 +220,8 @@ sha256(`${timestamp}:${bodyForHash}:${nonce}`) 的十六进制结果以 pow_diff
 - **幂等**：同一链接、同一收件人（登录名或邮箱）已成功发出过 → 直接回 200 `{ ok, invitation_id, message: "邀请已发出，请查看 GitHub 通知。" }`，不重复发。
 - 已知失败 → 400，文案按上游状态区分：`该用户已在组织中`、`GitHub 拒绝邀请（账号不存在或邮箱已被邀请）`、`GitHub 用户名不存在，请检查拼写`、`邀请失败，稍后重试`。
 - **结果未知**（上游 5xx/超时）→ 503「邀请结果待核对，请勿重复提交并联系管理员」；这种情况 CLI 不要自动重试，让人去核对。
+- **409（经错误处理器，`{ error, message, request_id }`，`message` 与 `error` 相同）**：`invite_unavailable`（链接已禁用、已过期或次数用完）、`invite_pending_review`（同一链接、同一收件人上一次的结果还没定——正在发或结果不确定、等管理员核对）；`invite_pending_review` 属**结果未定，不要自动重试**。
+- 400 分两种形状：Schema 校验（`validation_error` + Ajv 英文 `message` + `request_id`；未知字段、`github_login`>39、`email`>254、`note`>280、`pow` 形状不符等）与路由自判（`{ error: <中文句子> }`，无 `request_id`：蜜罐非空、PoW 不对、两者都没填、格式不对、Turnstile 未过、已知失败）。404 `邀请链接不存在` 同为路由自判、无 `message`/`request_id`。
 - 字段校验：两者都没填 → 400「需要填写 GitHub 用户名或邮箱」；格式不对 → 400「GitHub 用户名格式无效」/「邮箱格式无效」；PoW、蜜罐、人机验证失败使用公开表单的固定文案（见 §3.2）。
 - 每次尝试都会写 `invitations` 历史（组织 admin 可在 `GET /api/admin/:org/invitations` 的 `history` 里看到）；审计操作者记作 `public:<链接 token>`（控制台审计展示时截前 6 位）。
 
@@ -437,6 +446,8 @@ DepartmentView = {
 }
 ```
 
+- `strengths_excerpt`：取前 120 个 UTF-16 码元，截断时末尾加「…」，**最长 121**。
+
 #### 14. `GET /api/console/applications/export.csv`
 
 - **Query**：`status`（可选）。
@@ -589,7 +600,7 @@ DepartmentView = {
 - `GET .../file?ref=&path=`：缺 `path` → 400 `missing path`；path 是目录 → 400 `path is a directory`；>1MB → `{ path, name, size, too_large: true }`（不带内容）；否则 `{ path, name, size, sha, content, html_url, download_url }`。
 - `GET .../commits?sha=&path=&per_page=&page=`：`per_page` 默认 30、上限 100；每条 `{ sha, short_sha, message, message_full, author, committer, actor, html_url }`。
 - `GET .../commits/:sha` → `{ sha, message, author, actor, stats, files: [ { filename, status, additions, deletions, changes, patch (截断 30000 字符), previous_filename } ], html_url }`。
-- `GET .../issues?state=open|closed|all`（默认 open，≤50/页，过滤掉 PR）；`GET .../pulls?state=` 类似，字段含 `head/base`、`additions/deletions/changed_files`、`merged/mergeable`。
+- `GET .../issues?state=` 与 `.../pulls?state=`（默认 `open`）：`octokit.paginate` **每页 50 条取完全部**，回答不分页（issues 去掉 PR），按登录者/仓库/`state` 缓存 30 秒；公共 querystring 校验收下的 `per_page`（1–999，超 999 → 400 `validation_error`）与 `page` **在这两个接口不起作用**——分页参数只对 `.../commits` 生效。字段含 `head/base`、`additions/deletions/changed_files`、`merged/mergeable`。
 - `GET .../issues/:n` / `GET .../pulls/:n`：详情 + 评论（≤100 条）；PR 文件 patch 截断 20000 字符。
 - `PUT .../pulls/:n/merge`：body `{ "merge_method"?: "merge"|"squash"|"rebase", "commit_title"?, "commit_message"?, "sha"?（40 位十六进制，防并发） }`；成功 `{ ok, merged, sha, message }`；失败**不套统一错误体**，按 GitHub 状态码返回 `{ "error": "merge_failed", "message": <上游说明> }`。
 - `PATCH .../issues/:n`：body `{ "state": "open"|"closed" }` → `{ ok, state }`（Issue / PR 都可以，PR 即开或关）。
@@ -611,7 +622,7 @@ DepartmentView = {
 **活动与安全**
 
 - `GET /activity` → `{ events: [ { id, type, actor, actor_avatar, repo, created_at, payload_summary } ] }`（GitHub 组织事件，最多 100 条，`payload_summary` 是服务端压的一行说明）。
-- `GET /security` → `{ plan, two_factor_required, dependabot: { supported, alerts, reason? }, secret_scanning: { supported, reason? }, audit_log: { supported: false, reason } }`。免费组织多数项 `supported: false` 且带原因，属正常结果，不是错误。
+- `GET /security` → `{ plan, two_factor_required, dependabot: { supported, alerts, reason, error? }, secret_scanning: { supported, reason }, audit_log: { supported: false, reason } }`。免费组织 `dependabot.supported: false` 并带 `reason`，属正常结果；**付费组织取告警失败时接口仍回 200**：`alerts` 为空数组，`dependabot.error` 是 Octokit 异常 `message` 原文（GitHub 说明 + 文档链接，**不经脱敏**）。
 
 **旧管理端入口（审计日志与意见箱）**
 
@@ -666,12 +677,12 @@ DepartmentView = {
 | `Category` | `id, slug, name, description, color, icon` |
 | `Tag` | `id, slug, name, color` |
 | `Topic` | `id, slug, title, categoryId, tagIds[], authorId, createdAt, lastActivityAt, views, pinned, closed` |
-| `PostSummary`（`/state` 里的帖子） | `id, topicId, authorId, createdAt, editedAt?, replyToPostId?, likeUserIds[], deleted?, excerpt`——**不带 `content`**；摘要 ≤200 字、Markdown 压成一行 |
+| `PostSummary`（`/state` 里的帖子） | `id, topicId, authorId, createdAt, editedAt?, replyToPostId?, likeUserIds[], deleted?, excerpt`——**不带 `content`**；摘要 = Markdown 压成一行（代码块去掉、链接只留文字），超过 200 个 UTF-16 码元时取前 200 加「…」，**最长 201** |
 | `Notification` | `id, recipientId, type: "reply"\|"like"\|"follow"\|"mention"\|"system", actorId, topicId?, postId?, createdAt, read` |
 | `Bookmark` | `userId, postId, createdAt` |
 | `Follow` | `followerId, followeeId, createdAt` |
 
-- `notifications`、`bookmarks`、`follows` 只含看的人自己的；别人的通知/书签不会出现。
+- `notifications`、`bookmarks` 只含看的人自己的（游客两者都是空数组）；**`follows` 不按 viewer 过滤，是全站所有关注关系**（谁关注了谁对所有人公开，游客也拿到全部）——要「我关注的」自行按 `followerId === viewer.userId` 过滤。
 - 正文另取：`GET /api/forum/topics/:topic_id/posts`（见下表）。
 
 #### 写接口的统一回答（#145）
@@ -718,6 +729,8 @@ DepartmentView = {
 | 17 | `PUT /api/forum/me/avatar` | 上传头像（原始图片） | 成员 | 10 次/小时/人 |
 | 18 | `DELETE /api/forum/me/avatar` | 删除头像（回到 GitHub 头像） | 成员 | 无 |
 | 19 | `GET /api/forum/avatars/:file` | 取头像 | 所有人 | 无 |
+
+> 旧路径与方法：`/api/forum`、`/api/forum/*` 里**未注册的路径或方法**、`/auth/forum/*`、`/forum/u/*`（含 `DELETE /api/forum/state`）一律回 410 `{ error: "legacy_forum_retired", message: "旧论坛接口已停用。新论坛的接口见 /api/forum/state。" }`（HEAD 无响应体，无 `request_id`），不把旧接口映射成新接口；`HEAD /api/forum/state` 单独注册，回 405（表中已列）。
 
 ### 6.4 接口详解
 

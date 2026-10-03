@@ -1,7 +1,7 @@
 # geek-cli v2 架构（对接 yangtzeu.work 核心服务）
 
 > 状态：`accepted`（**评审通过**：issue #2 · @Crosery · 2026-10-02；本目录已并入 5 条修订）· 更新：2026-10-02 · 适用范围：geek-cli 全部后续开发。
-> 事实来源：[`docs/api-forum-console.md`](../api-forum-console.md)（**只读**，接口唯一真相）、geek-cli 现行源码、`docs/01–10` 协作规则。
+> 事实来源：[`docs/api-forum-console.md`](../api-forum-console.md)（接口唯一真相；由 geek-cli 侧按 admin 同步维护）、geek-cli 现行源码、`docs/01–10` 协作规则。
 > 约束与验证：任何实现 PR 必须能对回本目录的决策编号与命令表；验证方式=契约测试（mock server）+ 本机冒烟 + 发布前人工验收（见 06）。
 
 ## 0. 一句话
@@ -83,5 +83,5 @@
 
 - **不做**：旧命令 shim、PAT/Device flow 兼容、未收录接口（官网投递、公开意见墙、dev 快照）、绕过服务端能力门。
 - **待后端（proposed，评审定夺：本期不做）**：CLI 专用登录通道（loopback 白名单或 CLI token，02 §2.2；`GEEK_SID` / `--sid-stdin` 已覆盖 CI 与 agent）；发布元数据接口（不做，自更新继续走 GitHub Releases）。
-- **只读**：`docs/api-forum-console.md` 不得修改；发现不符即停手报告。
+- **手册维护**：`docs/api-forum-console.md` 由 geek-cli 侧按 admin 侧 `docs/architecture/API.md` 同步（2026-10-03 交接，冲突以 admin 为准）；发现不符 → 记录证据并同步手册。
 - **登记表**：全部待定 / 待确认 / 暂缓事项（含上述 proposed 项的当前状态）汇总于 [07-open-questions.md](07-open-questions.md)；新增不确定事项先记那里。

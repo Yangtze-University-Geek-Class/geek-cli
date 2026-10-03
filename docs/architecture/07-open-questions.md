@@ -11,6 +11,7 @@
 | A1 | ruleset 的绕过（bypass）配置与评审陈述不一致 | 评审 §0 称「所有者以 `pull_request` 模式绕过」；API 实读 ruleset `main: PR gate`（#24362647）`bypass_actors = null`、`current_user_can_bypass = never`——**当前无人可绕过** | @Crosery 确认或调整 ruleset；不影响我方（一律走 PR、不越权） |
 | A2 | 合并方式开关（squash/rebase 仍开启） | 项目规则＝只用 merge commit（`docs/01`）；仓库设置与 ruleset 目前允许 merge / squash / rebase 三种 | @Crosery 决定是否收紧（`docs/10` §7-9） |
 | A3 | `ci.yml` 纳入 required check | P0 交付 `.github/workflows/ci.yml`；ruleset 暂未包含 required status checks | @Crosery 在 `ci.yml` 落地后加入（`docs/10` §7-2） |
+| A4 | 框架冻结与 P0 开工的最终批准 | 2026-10-03 交接明确「本交接不批准架构冻结或开始实现」；PR #3（架构/规则/手册）仍待审 | @Crosery 完成 PR #3 审查并给出结论 |
 
 ## B. 暂缓（等日后成熟再处理）
 
@@ -21,8 +22,9 @@
 | B3 | 发布元数据接口 | issue #2 §3.2：不做；自更新继续走 GitHub Releases（04） | 需要渠道 / 灰度控制时 |
 | B4 | 缓存新鲜度旁路（`?fresh=1` 之类） | issue #2 §3.4：不做；120s 窗口已写入 02 §5 | 自动化被缓存窗口实际伤到时 |
 | B5 | 机器人专用限额 / 批量接口 | issue #2 §3.3：暂无机器人额度，额度对所有人一致 | 自动化任务频繁撞 429 时 |
-| B6 | API 手册 8 处差异修正 | issue #2 §4：由 geek_main 侧开 issue 修；CLI 先按服务端行为（01 §8） | 手册更新后，01 §8 收敛为指针 |
+| B6 | API 手册与真实服务差异 | ✅ **2026-10-03 已同步进 `docs/api-forum-console.md`**（admin 候选 `e01ed5a`、实现基线 stage `df4db703`；admin#191 / PR #197 的 429 修复已合入） | 手册再漂移时按同流程同步（admin 为准） |
 | B7 | npm 发布失败的自动补发 | 现为手动 re-run（10 §7-7） | 发版流程自动化时 |
+| B8 | admin 侧文档门禁与长度注释（admin#198、admin#199） | 交接提及，等所有者决定；不影响 CLI 实现 | 所有者决定后 |
 
 ## C. 已定夺、明确不做（留痕，避免反复讨论）
 

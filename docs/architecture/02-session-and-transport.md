@@ -119,7 +119,7 @@ sid: ********
 | 9 | 上游 / 服务不可用 | 5xx、`internal_error`、`upstream_rejected`、网络失败、超时 |
 
 - 错误输出一律 stderr：`--format json` 时输出单行 `{"error","message","request_id","http_status"}`；`pretty/table` 时输出中文一行 + 可操作提示。`request_id` **为可选字段**（仅抛错路径与 `session_expired` 带；缺失时不显示，不伪造）。
-- 429 有两种形态：`rate_limited`（中文）与插件默认 `request_error`（英文；export.csv / assignments / join 三处，见 01 §8）——都按限流处理。
+- 429：路由级限流统一为 `{ error: "rate_limited", message: "操作太频繁，请稍后再试", request_id }`（admin#191/#197 已并入 stage 基线）；业务上限另用专属码（`guest_replies_paused`、官网投递的 `apply_limited`）。CLI 对任何 429 一律按限流处理（兼容尚未升级的部署）。
 - `merge_failed`（PR 合并失败）**不套统一错误体**，按 GitHub 实际状态码归类（405/409→6，422→8，5xx→9）。
 - 评审补充映射（显式）：**410 → 5、405 → 6、422 → 8**。
 - 服务端承诺（评审 2026-10-02）：已发布接口的 `error` 机器码**新增可以、改名/删除须先公告**并附版本说明；CLI 退出码映射依赖此约定。

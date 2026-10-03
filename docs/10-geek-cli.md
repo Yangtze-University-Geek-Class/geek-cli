@@ -23,7 +23,7 @@
 - 分发三渠道：Release 二进制（`install.sh` / `install.ps1`，README 主推）→ npm 包装 `@yangtzeu/geek-cli`（postinstall 下载预编译二进制）→ `cargo install --git`。
 - 版本单源：`Cargo.toml` 的 `version`。npm 版本在发版时由 release workflow 从 tag 覆写，`npm/package.json` 里的值不是依据。
 - 不适用章节：07 的镜像 / 环境隔离 / 回滚条款（本项目无服务端、无 Docker、无部署环境，发版按 §5）；08 的 Node/pnpm 工具链条款（`npm/` 只是分发包装，不参与开发构建）。01–06、09 全部适用，参数见下。
-- 重构设计（v2 架构）见 [`docs/architecture/`](architecture/README.md)；接口唯一真相见 [`docs/api-forum-console.md`](api-forum-console.md)（**只读**，与 API 不符的旧实现一律按过期处理）。
+- 重构设计（v2 架构）见 [`docs/architecture/`](architecture/README.md)；接口唯一真相见 [`docs/api-forum-console.md`](api-forum-console.md)（由 geek-cli 侧按 admin 侧 `API.md` 同步维护；与 API 不符的旧实现一律按过期处理）。
 
 ## §2 工具链与验收入口（08 落地）
 

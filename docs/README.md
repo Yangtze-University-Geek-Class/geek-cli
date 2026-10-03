@@ -29,7 +29,7 @@
 | [08-build-and-test.md](08-build-and-test.md) | 工具链固定、构建/验证命令分层、测试隔离、CI 结构 |
 | [09-docs-and-modules.md](09-docs-and-modules.md) | 文档状态词表、文档跟着模块改、模块边界、agent 入口门禁 |
 | [10-geek-cli.md](10-geek-cli.md) | **本项目专属（现行）**：模块地图、工具链与验收入口、CLI 契约、文档同步对照、发版流程、落地状态 |
-| [api-forum-console.md](api-forum-console.md) | **只读**：极客班论坛与控制台接口手册（geek-cli 对接的唯一真相，不可修改） |
+| [api-forum-console.md](api-forum-console.md) | 极客班论坛与控制台接口手册（对接唯一真相；geek-cli 侧按 admin 侧 `API.md` 同步维护） |
 | [architecture/](architecture/README.md) | **geek-cli v2 架构（重写设计）**：会话/传输/命令面/自更新/安全/模块与路线图 |
 | [templates/](templates/) | 可直接复制的模板：bug issue、feature issue、PR、追踪评论、执行记录 |
 
