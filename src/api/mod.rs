@@ -1,4 +1,8 @@
+pub mod auth;
+pub mod console;
 pub mod error;
+pub mod me;
+pub mod public;
 
 pub use error::{ApiError, UsageError};
 

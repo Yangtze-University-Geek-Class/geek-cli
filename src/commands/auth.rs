@@ -2,6 +2,11 @@ use anyhow::{Context, Result};
 use serde_json::{json, Value};
 use std::io::{IsTerminal, Read};
 
+use super::current_sid;
+use crate::api::auth as auth_api;
+use crate::api::console as console_api;
+use crate::api::me as me_api;
+use crate::api::public as public_api;
 use crate::api::{ApiError, Client, UsageError};
 use crate::output::{emit, print_message, Format};
 use crate::session::{self, Session};
@@ -10,7 +15,7 @@ use crate::session::{self, Session};
 pub async fn login(base: &str, sid: Option<String>, sid_stdin: bool, fmt: Format) -> Result<()> {
     let sid = obtain_sid(base, sid, sid_stdin)?;
     let client = Client::new(base, Some(sid.clone()))?;
-    let me: Value = client.get("/auth/me").await?;
+    let me: Value = auth_api::me(&client).await?;
     if me["signed_in"] != json!(true) {
         let hint = if me["session_expired"] == json!(true) {
             "（服务端标记 session_expired）"
@@ -125,15 +130,11 @@ fn prompt_sid(base: &str) -> Result<String> {
 
 /// `geek logout`：尽力登出服务端会话，并清理本地会话。
 pub async fn logout(base: &str, fmt: Format) -> Result<()> {
-    let sid = match session::env_sid() {
-        Some(sid) => Some(sid),
-        None => session::get(base)?.map(|stored| stored.sid),
-    };
     let mut server_signout = None;
     let mut warning = None;
-    if let Some(sid) = sid {
+    if let Some(sid) = current_sid(base)? {
         let client = Client::new(base, Some(sid))?;
-        match client.post_empty::<Value>("/auth/signout").await {
+        match auth_api::signout(&client).await {
             Ok(_) => server_signout = Some(true),
             Err(error) => {
                 server_signout = Some(false);
@@ -155,14 +156,10 @@ pub async fn logout(base: &str, fmt: Format) -> Result<()> {
     )
 }
 
-/// `geek whoami`：聚合身份（auth + console? + orgs），形状见 docs/architecture/02 §7。
+/// `geek whoami`：聚合身份（auth + console? + orgs），形状见设计 02 §7。
 pub async fn whoami(base: &str, fmt: Format) -> Result<()> {
-    let sid = match session::env_sid() {
-        Some(sid) => Some(sid),
-        None => session::get(base)?.map(|stored| stored.sid),
-    };
-    let client = Client::new(base, sid)?;
-    let auth: Value = client.get("/auth/me").await?;
+    let client = Client::new(base, current_sid(base)?)?;
+    let auth: Value = auth_api::me(&client).await?;
     if auth["signed_in"] != json!(true) {
         return Err(ApiError::unauthenticated(format!(
             "未登录或会话已失效：先运行 `geek login --base {base}`"
@@ -170,7 +167,7 @@ pub async fn whoami(base: &str, fmt: Format) -> Result<()> {
         .into());
     }
     let mut out = json!({ "auth": auth });
-    match client.get::<Value>("/api/console/me").await {
+    match console_api::me(&client).await {
         Ok(value) => out["console"] = value,
         Err(error) => {
             if !is_forbidden(&error) {
@@ -178,25 +175,21 @@ pub async fn whoami(base: &str, fmt: Format) -> Result<()> {
             }
         }
     }
-    out["orgs"] = client.get("/api/me/orgs").await?;
+    out["orgs"] = me_api::orgs(&client).await?;
     emit(&out, fmt)
 }
 
 /// `geek status`：连通性 / 会话 / 能力自检（同一聚合形状，含 `health`）。
 pub async fn status(base: &str, fmt: Format) -> Result<()> {
-    let sid = match session::env_sid() {
-        Some(sid) => Some(sid),
-        None => session::get(base)?.map(|stored| stored.sid),
-    };
-    let client = Client::new(base, sid)?;
-    let health: Value = client.get("/healthz").await?;
-    let auth: Value = client.get("/auth/me").await?;
+    let client = Client::new(base, current_sid(base)?)?;
+    let health: Value = public_api::healthz(&client).await?;
+    let auth: Value = auth_api::me(&client).await?;
     let mut out = json!({ "health": health, "auth": auth });
     if auth["signed_in"] == json!(true) {
-        if let Ok(value) = client.get::<Value>("/api/console/me").await {
+        if let Ok(value) = console_api::me(&client).await {
             out["console"] = value;
         }
-        if let Ok(value) = client.get::<Value>("/api/me/orgs").await {
+        if let Ok(value) = me_api::orgs(&client).await {
             out["orgs"] = value;
         }
     }

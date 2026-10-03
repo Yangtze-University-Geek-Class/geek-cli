@@ -2,12 +2,13 @@ use anyhow::{Context, Result, bail};
 use clap::{Parser, Subcommand};
 use serde_json::{Value, json};
 
-use crate::api;
-use crate::commands;
+use geek_cli::api;
+use geek_cli::commands;
+use geek_cli::output::{Format, emit, print_message};
+
 use crate::config;
 use crate::forum::ForumClient;
 use crate::gh::GhClient;
-use crate::output::{Format, emit, print_message};
 
 #[derive(Parser, Debug)]
 #[command(name = "geek", version, about = "Yangtze University Geek Class CLI for agents and humans", long_about = None)]
