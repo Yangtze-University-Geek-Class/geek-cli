@@ -5,7 +5,7 @@ Yangtze University Geek Class (YUGC) CLI — manage GitHub orgs + the AI Native 
 ## Install
 
 ```bash
-npm install -g geek-cli
+npm install -g @yangtzeu/geek-cli
 geek --version
 ```
 
