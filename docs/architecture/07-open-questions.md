@@ -33,7 +33,7 @@
 ## D. 指向（避免双份清单）
 
 - 工程欠账与已确定缺口（PR CI、notes / worktree 脚本、测试缺位、fmt/clippy 历史欠账、README forum 命令、`stage` 分支等）：见 `docs/10` §7。
-- fork 删除（我方操作项）：需 `gh auth refresh -h github.com -s delete_repo` 后执行 `gh repo delete LYsnowQ/geek-cli --yes`。
+- fork 删除：✅ **已完成（2026-10-02，所有者在远端手动删除 `LYsnowQ/geek-cli`）**——不再需要 `delete_repo` scope。
 
 ## E. 维护约定（规则的一部分）
 
