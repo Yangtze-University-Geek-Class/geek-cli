@@ -23,4 +23,11 @@
 ## 13:40:48 +08:00 · 推送 · #6 · 推送 task/6/p0_read_commands
 
 - 执行者：agent-omp
+- 做了什么：git push origin task/6/p0_read_commands
 - 结果：远端任务分支更新至 994db9c09558（推送记录提交随本条入库）
+
+## 14:54:21 +08:00 · 提交 · #6 · 记录补正：补「做了什么」必填字段
+
+- 执行者：agent-omp
+- 做了什么：为 task_2 10-03「合并」条目、task_6「推送」条目补「做了什么」（docs/05 §3 必填三项；#14 note.mjs check 全树检出）
+- 结果：note.mjs check 全树通过（INDEX 临时生成校验后删除；全库 INDEX 见 #15）
