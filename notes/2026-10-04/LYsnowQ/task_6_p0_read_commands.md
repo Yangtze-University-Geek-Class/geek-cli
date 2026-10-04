@@ -26,6 +26,12 @@
 - 做了什么：git push origin task/6/p0_read_commands
 - 结果：远端任务分支更新至 994db9c09558（推送记录提交随本条入库）
 
+## 14:03:42 +08:00 · 验收 · #6 · P0 读命令真机验证（正式环境，只读；补记，随本分支入库）
+
+- 执行者：agent-omp
+- 做了什么：导入正式环境会话后跑 org list/show、repo list/show/tree/file/commits/issues/prs、whoami、status、--env prod
+- 结果：全部 rc=0；orgs[1]、repos[6]、branches[4]、collaborators[26]、docs 树 16 项、README.md 5479B、commits 3、issues 4、prs 1；whoami/status 聚合形状与设计一致
+
 ## 14:54:21 +08:00 · 提交 · #6 · 记录补正：补「做了什么」必填字段
 
 - 执行者：agent-omp

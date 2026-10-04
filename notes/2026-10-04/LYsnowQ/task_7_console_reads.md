@@ -24,3 +24,9 @@
 
 - 执行者：agent-omp
 - 结果：远端 task/7/console_reads 更新至 2270e2bbba3e（推送记录随本条入库；#6 合并后 rebase 到 main）
+
+## 14:03:42 +08:00 · 验收 · #7 · console 只读面真机验证（正式环境，只读；agent 验证，非人工验收）
+
+- 执行者：agent-omp
+- 做了什么：导入正式环境会话（手工 sid 路径），跑 console 读命令与 application show
+- 结果：me / catalogue / department list / application list / application show rc=0；summary 仅返回有权限的 applications 子集；people / assignment list / audit / feedback list 按能力门返回 403 missing_capability→exit 4（符合设计）
