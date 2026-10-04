@@ -1,9 +1,64 @@
 //! 控制台端点（手册 §4）：全部需要会话；能力门由服务端判定（403 `missing_capability`）。
+//!
+//! 读响应透传（`serde_json::Value`）；写请求用强类型模型（`skip_serializing_if` 保证不多发字段，
+//! 规避 `additionalProperties: false` 的 400）。
 
 use anyhow::Result;
+use serde::Serialize;
 use serde_json::Value;
 
 use super::{query, Client};
+
+// ---------- 请求模型（写） ----------
+
+/// 审核通知信内容（按状态选用；只发送实际给出的字段）。
+#[derive(Debug, Serialize)]
+pub struct ReviewLetter {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub time: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub place: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub notes: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
+}
+
+impl ReviewLetter {
+    pub fn is_empty(&self) -> bool {
+        self.time.is_none()
+            && self.place.is_none()
+            && self.notes.is_none()
+            && self.message.is_none()
+    }
+}
+
+/// `PATCH /api/console/applications/:id` 请求体（改状态时 `expected_*` 必填，由命令层补齐）。
+#[derive(Debug, Serialize)]
+pub struct ApplicationReviewBody {
+    pub status: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expected_status: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expected_review_id: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub notify: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub letter: Option<ReviewLetter>,
+}
+
+/// `PATCH /api/console/feedback/:id` 请求体（至少一项，由命令层校验）。
+#[derive(Debug, Serialize)]
+pub struct FeedbackUpdateBody {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reply: Option<String>,
+}
+
+// ---------- 读 ----------
 
 /// `GET /api/console/me`：身份、称号与能力（只要求登录）。
 pub async fn me(client: &Client) -> Result<Value> {
@@ -120,14 +175,104 @@ pub async fn audit(
         .await
 }
 
+// ---------- 写 ----------
+
+/// `PATCH /api/console/applications/:application_id`：改状态 / 写备注 / 可选发信。
+pub async fn application_review(
+    client: &Client,
+    application_id: &str,
+    body: &ApplicationReviewBody,
+) -> Result<Value> {
+    client
+        .patch_json(
+            &format!(
+                "/api/console/applications/{}",
+                urlencoding::encode(application_id)
+            ),
+            body,
+        )
+        .await
+}
+
+/// `PATCH /api/console/feedback/:id`：改意见状态 / 回复。
+pub async fn feedback_update(client: &Client, id: u64, body: &FeedbackUpdateBody) -> Result<Value> {
+    client
+        .patch_json(&format!("/api/console/feedback/{id}"), body)
+        .await
+}
+
+/// `DELETE /api/console/feedback/:id`：删除意见（不可恢复）。
+pub async fn feedback_delete(client: &Client, id: u64) -> Result<Value> {
+    client
+        .delete_json(&format!("/api/console/feedback/{id}"))
+        .await
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn encodes_application_id_segment() {
-        // 仅验证路径拼装不 panic 且对非法字符做段编码（网络行为由 tests/api_client.rs 覆盖）。
-        let path = format!("/api/console/applications/{}", urlencoding::encode("a/b"));
-        assert_eq!(path, "/api/console/applications/a%2Fb");
+    fn review_body_skips_absent_fields() {
+        let body = ApplicationReviewBody {
+            status: "interview".into(),
+            expected_status: Some("received".into()),
+            expected_review_id: Some(0),
+            note: None,
+            notify: None,
+            letter: None,
+        };
+        assert_eq!(
+            serde_json::to_value(&body).unwrap(),
+            serde_json::json!({"status": "interview", "expected_status": "received", "expected_review_id": 0})
+        );
+
+        let body = ApplicationReviewBody {
+            status: "interview".into(),
+            expected_status: None,
+            expected_review_id: None,
+            note: None,
+            notify: Some(false),
+            letter: Some(ReviewLetter {
+                time: Some("周六".into()),
+                place: None,
+                notes: None,
+                message: None,
+            }),
+        };
+        assert_eq!(
+            serde_json::to_value(&body).unwrap(),
+            serde_json::json!({"status": "interview", "notify": false, "letter": {"time": "周六"}})
+        );
+    }
+
+    #[test]
+    fn feedback_body_skips_absent_fields() {
+        let body = FeedbackUpdateBody {
+            status: None,
+            reply: Some("已处理".into()),
+        };
+        assert_eq!(
+            serde_json::to_value(&body).unwrap(),
+            serde_json::json!({"reply": "已处理"})
+        );
+    }
+
+    #[test]
+    fn letter_emptiness() {
+        let empty = ReviewLetter {
+            time: None,
+            place: None,
+            notes: None,
+            message: None,
+        };
+        assert!(empty.is_empty());
+        let full = ReviewLetter {
+            time: Some("周六".into()),
+            place: None,
+            notes: None,
+            message: None,
+        };
+        assert!(!full.is_empty());
     }
 }

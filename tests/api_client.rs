@@ -78,3 +78,44 @@ async fn empty_post_sends_no_content_type() {
         "should not send content-type: {request}"
     );
 }
+
+#[tokio::test]
+async fn patch_sends_json_body_and_content_type() {
+    let (base, rx) = spawn_server(http_response("200 OK", r#"{"ok":true}"#));
+    let client = Client::new(&base, Some("s".into())).expect("client");
+    let body = serde_json::json!({"status": "interview"});
+    let _: serde_json::Value = client
+        .patch_json("/api/console/applications/x", &body)
+        .await
+        .expect("patch");
+    let request = rx.recv().expect("request captured");
+    assert!(
+        request.starts_with("PATCH /api/console/applications/x "),
+        "{request}"
+    );
+    let lower = request.to_lowercase();
+    assert!(
+        lower.contains("content-type: application/json"),
+        "{request}"
+    );
+    assert!(request.contains(r#"{"status":"interview"}"#), "{request}");
+}
+
+#[tokio::test]
+async fn delete_sends_no_content_type() {
+    let (base, rx) = spawn_server(http_response("200 OK", r#"{"ok":true}"#));
+    let client = Client::new(&base, None).expect("client");
+    let _: serde_json::Value = client
+        .delete_json("/api/console/feedback/1")
+        .await
+        .expect("delete");
+    let request = rx.recv().expect("request captured");
+    assert!(
+        request.starts_with("DELETE /api/console/feedback/1 "),
+        "{request}"
+    );
+    assert!(
+        !request.to_lowercase().contains("content-type"),
+        "{request}"
+    );
+}

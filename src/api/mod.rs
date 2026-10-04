@@ -10,6 +10,7 @@ pub use error::{ApiError, UsageError};
 use anyhow::{Context, Result};
 use reqwest::{Client as Http, Method, RequestBuilder};
 use serde::de::DeserializeOwned;
+use serde::Serialize;
 use std::time::Duration;
 
 pub const PROD: &str = "https://yangtzeu.work";
@@ -103,6 +104,46 @@ impl Client {
     pub async fn post_empty<T: DeserializeOwned>(&self, path: &str) -> Result<T> {
         let response = self
             .req(Method::POST, path)
+            .send()
+            .await
+            .map_err(ApiError::network)?;
+        self.decode(response).await
+    }
+
+    /// 带 JSON body 的 POST（自动带 `Content-Type: application/json`）。
+    pub async fn post_json<B, T>(&self, path: &str, body: &B) -> Result<T>
+    where
+        B: Serialize + ?Sized,
+        T: DeserializeOwned,
+    {
+        let response = self
+            .req(Method::POST, path)
+            .json(body)
+            .send()
+            .await
+            .map_err(ApiError::network)?;
+        self.decode(response).await
+    }
+
+    /// 带 JSON body 的 PATCH（自动带 `Content-Type: application/json`）。
+    pub async fn patch_json<B, T>(&self, path: &str, body: &B) -> Result<T>
+    where
+        B: Serialize + ?Sized,
+        T: DeserializeOwned,
+    {
+        let response = self
+            .req(Method::PATCH, path)
+            .json(body)
+            .send()
+            .await
+            .map_err(ApiError::network)?;
+        self.decode(response).await
+    }
+
+    /// 无 body 的 DELETE（不发 `Content-Type`），响应按 JSON 解析。
+    pub async fn delete_json<T: DeserializeOwned>(&self, path: &str) -> Result<T> {
+        let response = self
+            .req(Method::DELETE, path)
             .send()
             .await
             .map_err(ApiError::network)?;

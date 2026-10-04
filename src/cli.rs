@@ -25,6 +25,14 @@ pub struct Cli {
     #[arg(long, global = true, value_parser = ["prod", "prev", "local"])]
     pub env: Option<String>,
 
+    /// 跳过交互确认（破坏性 / 有副作用的写操作）
+    #[arg(long, global = true)]
+    pub yes: bool,
+
+    /// 只打印将发送的请求，不实际发送
+    #[arg(long, global = true)]
+    pub dry_run: bool,
+
     #[command(subcommand)]
     pub command: Cmd,
 }
@@ -250,6 +258,36 @@ pub enum ApplicationCmd {
     },
     /// 投递详情（含审核历史）
     Show { application_id: String },
+    /// 审核投递：改状态 / 写备注 / 可选发信（需 --yes；--dry-run 只打印请求）
+    Review {
+        application_id: String,
+        #[arg(long, value_parser = ["received", "interview", "accepted", "rejected"])]
+        status: String,
+        /// 覆盖自动读取的「页面上看到的状态」
+        #[arg(long)]
+        expected_status: Option<String>,
+        /// 覆盖自动读取的「页面上最大审核记录 id」
+        #[arg(long)]
+        expected_review_id: Option<u64>,
+        /// 审核备注（只给审核人看，不进信、不进审计；≤2000）
+        #[arg(long)]
+        note: Option<String>,
+        /// 不发通知信（默认发送）
+        #[arg(long)]
+        no_notify: bool,
+        /// 待面试信：面试时间（≤60）
+        #[arg(long)]
+        time: Option<String>,
+        /// 待面试信：地点（≤120）
+        #[arg(long)]
+        place: Option<String>,
+        /// 待面试=面试说明 / 已录取=接下来要做的事（≤1000）
+        #[arg(long)]
+        notes: Option<String>,
+        /// 未通过=原因（≤1000）
+        #[arg(long)]
+        message: Option<String>,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -261,6 +299,16 @@ pub enum FeedbackCmd {
         #[arg(long)]
         limit: Option<u32>,
     },
+    /// 改意见状态 / 回复（至少一项；需 --yes）
+    Reply {
+        id: u64,
+        #[arg(long, value_parser = ["open", "triaged", "in_progress", "done", "wont_do", "spam"])]
+        status: Option<String>,
+        #[arg(long)]
+        reply: Option<String>,
+    },
+    /// 删除意见（不可恢复；需 --yes）
+    Delete { id: u64 },
 }
 
 #[derive(Subcommand, Debug)]
@@ -359,6 +407,7 @@ pub enum ActivityCmd {
 
 pub async fn run(cli: Cli) -> Result<()> {
     let base = api::resolve_base(cli.base.as_deref(), cli.env.as_deref());
+    let write = commands::WriteOpts { yes: cli.yes, dry_run: cli.dry_run };
     match cli.command {
         Cmd::Login { sid, sid_stdin } => commands::auth::login(&base, sid, sid_stdin, cli.format).await,
         Cmd::Logout => commands::auth::logout(&base, cli.format).await,
@@ -388,11 +437,46 @@ pub async fn run(cli: Cli) -> Result<()> {
                 ApplicationCmd::Show { application_id } => {
                     commands::console::application(&base, &application_id, cli.format).await
                 }
+                ApplicationCmd::Review {
+                    application_id,
+                    status,
+                    expected_status,
+                    expected_review_id,
+                    note,
+                    no_notify,
+                    time,
+                    place,
+                    notes,
+                    message,
+                } => {
+                    commands::console::application_review(
+                        &base,
+                        &application_id,
+                        commands::console::ReviewArgs {
+                            status,
+                            expected_status,
+                            expected_review_id,
+                            note,
+                            notify: !no_notify,
+                            time,
+                            place,
+                            notes,
+                            message,
+                        },
+                        &write,
+                        cli.format,
+                    )
+                    .await
+                }
             },
             ConsoleCmd::Feedback(c) => match c {
                 FeedbackCmd::List { status, limit } => {
                     commands::console::feedback(&base, status.as_deref(), limit, cli.format).await
                 }
+                FeedbackCmd::Reply { id, status, reply } => {
+                    commands::console::feedback_reply(&base, id, status.as_deref(), reply.as_deref(), &write, cli.format).await
+                }
+                FeedbackCmd::Delete { id } => commands::console::feedback_delete(&base, id, &write, cli.format).await,
             },
             ConsoleCmd::Audit { limit, offset, action } => {
                 commands::console::audit(&base, limit, offset, action.as_deref(), cli.format).await
