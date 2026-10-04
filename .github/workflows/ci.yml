@@ -1,0 +1,32 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      # 框架文件（src/lib.rs 递归）先行纳入；全量 fmt 与 clippy 待旧代码清理后接入
+      # （docs/10 §7-8：旧代码未 rustfmt 化、存在死代码，按用户指示暂不修改）。
+      - name: rustfmt (framework)
+        run: rustfmt --edition 2021 --check src/lib.rs
+
+      - name: test
+        run: cargo test --locked
+
+      - name: build (release)
+        run: cargo build --locked --release

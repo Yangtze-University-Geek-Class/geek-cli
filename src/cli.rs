@@ -46,6 +46,9 @@ pub enum Cmd {
     Whoami,
     /// 连通性 / 会话 / 能力自检
     Status,
+    /// Console commands
+    #[command(subcommand)]
+    Console(ConsoleCmd),
     /// Organization commands
     #[command(subcommand)]
     Org(OrgCmd),
@@ -176,12 +179,16 @@ pub enum ForumCmd {
 
 #[derive(Subcommand, Debug)]
 pub enum OrgCmd {
-    /// List orgs the signed-in user belongs to
+    /// 列出当前会话可用的组织（GET /api/me/orgs）
     List,
-    /// Show org details
+    /// 组织概况与统计（GET /api/admin/:org/overview）
     Show { org: String },
-    /// Members of an org (alias for `member list`)
-    Members { org: String },
+}
+
+#[derive(Subcommand, Debug)]
+pub enum ConsoleCmd {
+    /// 控制台身份 / 称号 / 能力（GET /api/console/me）
+    Me,
 }
 
 #[derive(Subcommand, Debug)]
@@ -227,34 +234,11 @@ pub enum InviteCmd {
 
 #[derive(Subcommand, Debug)]
 pub enum RepoCmd {
-    /// List repos in an org
+    /// 列出组织仓库（GET /api/admin/:org/repos）
     List { org: String },
-    /// Show repo info
+    /// 仓库详情：分支 / 协作者 / 钩子（GET /api/admin/:org/repos/:repo）
     Show { full: String },
-    /// Create a new repo: <org> <name>
-    Create {
-        org: String,
-        name: String,
-        #[arg(long, default_value = "private", value_parser = ["public", "private"])]
-        visibility: String,
-        #[arg(long)]
-        description: Option<String>,
-        #[arg(long)]
-        no_init: bool,
-        #[arg(long)]
-        gitignore: Option<String>,
-        #[arg(long)]
-        license: Option<String>,
-    },
-    /// Delete a repo (DANGEROUS)
-    Delete {
-        full: String,
-        #[arg(long)]
-        yes: bool,
-    },
-    /// List branches
-    Branches { full: String },
-    /// List directory entries at path
+    /// 目录树（GET …/tree?ref=&path=）
     Tree {
         full: String,
         #[arg(long, default_value = "")]
@@ -262,42 +246,37 @@ pub enum RepoCmd {
         #[arg(long)]
         r#ref: Option<String>,
     },
-    /// Print file content
-    Cat {
+    /// 打印文件内容（GET …/file?ref=&path=）
+    File {
         full: String,
         path: String,
         #[arg(long)]
         r#ref: Option<String>,
     },
-    /// List commits
+    /// 提交列表（GET …/commits?sha=&path=&per_page=&page=）
     Commits {
         full: String,
         #[arg(long)]
-        r#ref: Option<String>,
-        #[arg(long, default_value_t = 30)]
-        limit: u32,
+        sha: Option<String>,
+        #[arg(long)]
+        path: Option<String>,
+        #[arg(long)]
+        per_page: Option<u32>,
+        #[arg(long)]
+        page: Option<u32>,
     },
-    /// List issues
+    /// Issue 列表（GET …/issues?state=）
     Issues {
         full: String,
         #[arg(long, default_value = "open", value_parser = ["open", "closed", "all"])]
         state: String,
     },
-    /// List PRs
+    /// PR 列表（GET …/pulls?state=）
     Prs {
         full: String,
         #[arg(long, default_value = "open", value_parser = ["open", "closed", "all"])]
         state: String,
     },
-    /// Add a collaborator
-    Collab {
-        full: String,
-        login: String,
-        #[arg(long, default_value = "push", value_parser = ["pull", "triage", "push", "maintain", "admin"])]
-        permission: String,
-    },
-    /// Remove a collaborator
-    Uncollab { full: String, login: String },
 }
 
 #[derive(Subcommand, Debug)]
@@ -307,27 +286,32 @@ pub enum ActivityCmd {
 }
 
 pub async fn run(cli: Cli) -> Result<()> {
+    let base = api::resolve_base(cli.base.as_deref(), cli.env.as_deref());
     match cli.command {
-        Cmd::Login { sid, sid_stdin } => {
-            let base = api::resolve_base(cli.base.as_deref(), cli.env.as_deref());
-            commands::auth::login(&base, sid, sid_stdin, cli.format).await
-        }
-        Cmd::Logout => {
-            let base = api::resolve_base(cli.base.as_deref(), cli.env.as_deref());
-            commands::auth::logout(&base, cli.format).await
-        }
-        Cmd::Whoami => {
-            let base = api::resolve_base(cli.base.as_deref(), cli.env.as_deref());
-            commands::auth::whoami(&base, cli.format).await
-        }
-        Cmd::Status => {
-            let base = api::resolve_base(cli.base.as_deref(), cli.env.as_deref());
-            commands::auth::status(&base, cli.format).await
-        }
-        Cmd::Org(c) => cmd_org(c, cli.format).await,
+        Cmd::Login { sid, sid_stdin } => commands::auth::login(&base, sid, sid_stdin, cli.format).await,
+        Cmd::Logout => commands::auth::logout(&base, cli.format).await,
+        Cmd::Whoami => commands::auth::whoami(&base, cli.format).await,
+        Cmd::Status => commands::auth::status(&base, cli.format).await,
+        Cmd::Org(c) => match c {
+            OrgCmd::List => commands::org::list(&base, cli.format).await,
+            OrgCmd::Show { org } => commands::org::show(&base, &org, cli.format).await,
+        },
+        Cmd::Console(c) => match c {
+            ConsoleCmd::Me => commands::console::me(&base, cli.format).await,
+        },
         Cmd::Member(c) => cmd_member(c, cli.format).await,
         Cmd::Invite(c) => cmd_invite(c, cli.format).await,
-        Cmd::Repo(c) => cmd_repo(c, cli.format).await,
+        Cmd::Repo(c) => match c {
+            RepoCmd::List { org } => commands::repo::list(&base, &org, cli.format).await,
+            RepoCmd::Show { full } => commands::repo::show(&base, &full, cli.format).await,
+            RepoCmd::Tree { full, path, r#ref } => commands::repo::tree(&base, &full, &path, r#ref.as_deref(), cli.format).await,
+            RepoCmd::File { full, path, r#ref } => commands::repo::file(&base, &full, &path, r#ref.as_deref(), cli.format).await,
+            RepoCmd::Commits { full, sha, path, per_page, page } => {
+                commands::repo::commits(&base, &full, sha.as_deref(), path.as_deref(), per_page, page, cli.format).await
+            }
+            RepoCmd::Issues { full, state } => commands::repo::issues(&base, &full, &state, cli.format).await,
+            RepoCmd::Prs { full, state } => commands::repo::pulls(&base, &full, &state, cli.format).await,
+        },
         Cmd::Activity(c) => cmd_activity(c, cli.format).await,
         Cmd::Forum(c) => cmd_forum(c, cli.format).await,
         Cmd::Dashboard { org } => cmd_dashboard(org),
@@ -475,38 +459,6 @@ async fn cmd_forum(c: ForumCmd, fmt: Format) -> Result<()> {
     }
 }
 
-fn split_full(full: &str) -> Result<(&str, &str)> {
-    full.split_once('/').context("expected <org>/<repo> form")
-}
-
-async fn cmd_org(c: OrgCmd, fmt: Format) -> Result<()> {
-    let gh = GhClient::new(config::require_token()?)?;
-    match c {
-        OrgCmd::List => {
-            let memberships: Vec<Value> = gh
-                .paginate("/user/memberships/orgs?state=active")
-                .await?;
-            let rows: Vec<Value> = memberships
-                .into_iter()
-                .map(|m| {
-                    json!({
-                        "login": m["organization"]["login"],
-                        "name":  m["organization"]["name"],
-                        "role":  m["role"],
-                        "state": m["state"],
-                    })
-                })
-                .collect();
-            emit(&rows, fmt)
-        }
-        OrgCmd::Show { org } => {
-            let v: Value = gh.get(&format!("/orgs/{org}")).await?;
-            emit(&v, fmt)
-        }
-        OrgCmd::Members { org } => members_list(&gh, &org, fmt).await,
-    }
-}
-
 async fn cmd_member(c: MemberCmd, fmt: Format) -> Result<()> {
     let gh = GhClient::new(config::require_token()?)?;
     match c {
@@ -607,186 +559,6 @@ async fn cmd_invite(c: InviteCmd, fmt: Format) -> Result<()> {
         InviteCmd::Cancel { org, id } => {
             gh.delete(&format!("/orgs/{org}/invitations/{id}")).await?;
             emit(&json!({ "ok": true, "cancelled": id, "org": org }), fmt)
-        }
-    }
-}
-
-async fn cmd_repo(c: RepoCmd, fmt: Format) -> Result<()> {
-    let gh = GhClient::new(config::require_token()?)?;
-    match c {
-        RepoCmd::List { org } => {
-            let v: Vec<Value> = gh.paginate(&format!("/orgs/{org}/repos?type=all")).await?;
-            let rows: Vec<Value> = v
-                .into_iter()
-                .map(|r| {
-                    json!({
-                        "name": r["name"],
-                        "full_name": r["full_name"],
-                        "visibility": r["visibility"],
-                        "default_branch": r["default_branch"],
-                        "size_kb": r["size"],
-                        "language": r["language"],
-                        "pushed_at": r["pushed_at"],
-                        "open_issues": r["open_issues_count"],
-                        "html_url": r["html_url"],
-                    })
-                })
-                .collect();
-            emit(&rows, fmt)
-        }
-        RepoCmd::Show { full } => {
-            let (o, r) = split_full(&full)?;
-            let v: Value = gh.get(&format!("/repos/{o}/{r}")).await?;
-            emit(&v, fmt)
-        }
-        RepoCmd::Create { org, name, visibility, description, no_init, gitignore, license } => {
-            let mut body = json!({
-                "name": name,
-                "visibility": visibility,
-                "auto_init": !no_init,
-            });
-            if let Some(d) = description { body["description"] = json!(d); }
-            if let Some(g) = gitignore { body["gitignore_template"] = json!(g); }
-            if let Some(l) = license { body["license_template"] = json!(l); }
-            let r: Value = gh.post(&format!("/orgs/{org}/repos"), &body).await?;
-            emit(&r, fmt)
-        }
-        RepoCmd::Delete { full, yes } => {
-            if !yes {
-                bail!("拒绝删除：删除仓库不可恢复。确认后加 --yes");
-            }
-            let (o, r) = split_full(&full)?;
-            gh.delete(&format!("/repos/{o}/{r}")).await?;
-            emit(&json!({ "ok": true, "deleted": full }), fmt)
-        }
-        RepoCmd::Branches { full } => {
-            let (o, r) = split_full(&full)?;
-            let v: Vec<Value> = gh.paginate(&format!("/repos/{o}/{r}/branches")).await?;
-            let rows: Vec<Value> = v
-                .into_iter()
-                .map(|b| json!({ "name": b["name"], "protected": b["protected"] }))
-                .collect();
-            emit(&rows, fmt)
-        }
-        RepoCmd::Tree { full, path, r#ref } => {
-            let (o, r) = split_full(&full)?;
-            let mut url = format!("/repos/{o}/{r}/contents/{path}");
-            if let Some(rf) = r#ref { url.push_str(&format!("?ref={rf}")); }
-            let v: Value = gh.get(&url).await?;
-            let arr: Vec<Value> = match v {
-                Value::Array(a) => a,
-                other => vec![other],
-            };
-            let rows: Vec<Value> = arr
-                .into_iter()
-                .map(|e| json!({
-                    "name": e["name"],
-                    "type": e["type"],
-                    "size": e["size"],
-                    "path": e["path"],
-                }))
-                .collect();
-            emit(&rows, fmt)
-        }
-        RepoCmd::Cat { full, path, r#ref } => {
-            let (o, r) = split_full(&full)?;
-            let mut url = format!("/repos/{o}/{r}/contents/{path}");
-            if let Some(rf) = r#ref { url.push_str(&format!("?ref={rf}")); }
-            let v: Value = gh.get(&url).await?;
-            if v.is_array() { bail!("path 是目录"); }
-            if v["encoding"] == "base64" {
-                let raw = v["content"].as_str().unwrap_or("").replace('\n', "");
-                use base64::Engine;
-                let bytes = base64::engine::general_purpose::STANDARD
-                    .decode(&raw)
-                    .context("base64 decode")?;
-                let text = String::from_utf8_lossy(&bytes);
-                print!("{text}");
-                Ok(())
-            } else {
-                let text = v["content"].as_str().unwrap_or("");
-                print!("{text}");
-                Ok(())
-            }
-        }
-        RepoCmd::Commits { full, r#ref, limit } => {
-            let (o, r) = split_full(&full)?;
-            let mut url = format!("/repos/{o}/{r}/commits?per_page={limit}");
-            if let Some(rf) = r#ref { url.push_str(&format!("&sha={rf}")); }
-            let v: Vec<Value> = gh.get(&url).await?;
-            let rows: Vec<Value> = v
-                .into_iter()
-                .map(|c| {
-                    let sha = c["sha"].as_str().unwrap_or("").to_string();
-                    json!({
-                        "sha": sha[..7.min(sha.len())].to_string(),
-                        "message": c["commit"]["message"].as_str().unwrap_or("").lines().next().unwrap_or("").to_string(),
-                        "author": c["commit"]["author"]["name"],
-                        "date": c["commit"]["author"]["date"],
-                        "html_url": c["html_url"],
-                    })
-                })
-                .collect();
-            emit(&rows, fmt)
-        }
-        RepoCmd::Issues { full, state } => {
-            let (o, r) = split_full(&full)?;
-            let v: Vec<Value> = gh
-                .paginate(&format!("/repos/{o}/{r}/issues?state={state}"))
-                .await?;
-            let rows: Vec<Value> = v
-                .into_iter()
-                .filter(|i| i.get("pull_request").is_none() || i["pull_request"].is_null())
-                .map(|i| {
-                    json!({
-                        "number": i["number"],
-                        "state": i["state"],
-                        "title": i["title"],
-                        "user": i["user"]["login"],
-                        "comments": i["comments"],
-                        "created_at": i["created_at"],
-                        "html_url": i["html_url"],
-                    })
-                })
-                .collect();
-            emit(&rows, fmt)
-        }
-        RepoCmd::Prs { full, state } => {
-            let (o, r) = split_full(&full)?;
-            let v: Vec<Value> = gh
-                .paginate(&format!("/repos/{o}/{r}/pulls?state={state}&sort=updated&direction=desc"))
-                .await?;
-            let rows: Vec<Value> = v
-                .into_iter()
-                .map(|p| {
-                    json!({
-                        "number": p["number"],
-                        "state": p["state"],
-                        "draft": p["draft"],
-                        "merged": p["merged_at"].is_string(),
-                        "title": p["title"],
-                        "user": p["user"]["login"],
-                        "head": p["head"]["ref"],
-                        "base": p["base"]["ref"],
-                        "html_url": p["html_url"],
-                    })
-                })
-                .collect();
-            emit(&rows, fmt)
-        }
-        RepoCmd::Collab { full, login, permission } => {
-            let (o, r) = split_full(&full)?;
-            gh.put(
-                &format!("/repos/{o}/{r}/collaborators/{login}"),
-                &json!({ "permission": permission }),
-            )
-            .await?;
-            emit(&json!({ "ok": true, "added": login, "permission": permission }), fmt)
-        }
-        RepoCmd::Uncollab { full, login } => {
-            let (o, r) = split_full(&full)?;
-            gh.delete(&format!("/repos/{o}/{r}/collaborators/{login}")).await?;
-            emit(&json!({ "ok": true, "removed": login }), fmt)
         }
     }
 }
