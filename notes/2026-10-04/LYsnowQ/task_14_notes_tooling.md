@@ -20,3 +20,9 @@
 - 做了什么：scripts/note.mjs（add/index/check/selftest；含冲突标记检测）+ scripts/README.md + docs/10 §4/§7-5；栈内 4 处字段补正：task/6 23d1261、task/7 70450c5（含误推 55de55f 的 force-with-lease 回滚）、task/8 ce26cf4
 - 结果：selftest PASS；origin/task/8 全树 check 通过（5 链 / 34 条）；本链路 INDEX 重新生成
 - 下一步：开 PR（Closes #14）并补 PR 记录
+
+## 14:58:10 +08:00 · PR · #14 · 开 PR #16（九段正文）
+
+- 执行者：agent-omp（omp coding agent，deepseek/deepseek-flash）
+- 做了什么：PR #16（Closes #14；目的/关联/变更范围/解决链路/验证命令与结果/验收证据/人工验收步骤/审查结论/风险与回滚）
+- 结果：PR 已开；待人工审查（被审提交见 PR 头）
