@@ -8,7 +8,7 @@
 
 | # | 事项 | 现状与证据 | 待谁确认 / 触发条件 |
 |---|---|---|---|
-| A1 | ruleset 的绕过（bypass）配置与评审陈述不一致 | 评审 §0 称「所有者以 `pull_request` 模式绕过」；API 实读 ruleset `main: PR gate`（#24362647）`bypass_actors = null`、`current_user_can_bypass = never`——**当前无人可绕过** | @Crosery 确认或调整 ruleset；不影响我方（一律走 PR、不越权） |
+| A1 | ruleset 的绕过（bypass）配置与评审陈述不一致 | 评审 §0 称「所有者以 `pull_request` 模式绕过」；API 实读 ruleset `main: PR gate`（#24362647）`bypass_actors = null`、`current_user_can_bypass = never`——**当前无人可绕过**（2026-10-04 复核：仍为 `null` / `never`，ruleset `updated_at` 2026-10-02） | @Crosery 确认或调整 ruleset；不影响我方（一律走 PR、不越权） |
 | A2 | 合并方式开关（squash/rebase 仍开启） | 项目规则＝只用 merge commit（`docs/01`）；仓库设置与 ruleset 目前允许 merge / squash / rebase 三种 | @Crosery 决定是否收紧（`docs/10` §7-9） |
 | A3 | `ci.yml` 纳入 required check | P0 交付 `.github/workflows/ci.yml`；ruleset 暂未包含 required status checks | @Crosery 在 `ci.yml` 落地后加入（`docs/10` §7-2） |
 | A4 | 框架冻结与 P0 开工的最终批准 | 2026-10-03 交接明确「本交接不批准架构冻结或开始实现」；PR #3（架构/规则/手册）仍待审 | @Crosery 完成 PR #3 审查并给出结论 |

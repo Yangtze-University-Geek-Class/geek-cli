@@ -128,7 +128,7 @@ sid: ********
 ## 7. 输出契约（人机双模）
 
 - **stdout 只放数据，stderr 只放提示/进度/更新通知**；JSON 模式不混任何人类文案。
-- 默认 `--format json`：单行 JSON，**与 API 手册同形状**——不重命名、不重组、不拆包（`.members`、`.repos`、`.state` 等保持原样；jq 路径 = 手册字段路径）。
+- 默认 `--format json`：单行 JSON，**与 API 手册同形状**——不重命名、不重组、不拆包（`.members`、`.repos`、`.state` 等保持原样；jq 路径 = 手册字段路径）。凭据类字段（如邀请 token）同样原样输出（输出即凭据，勿转发）；脱敏只发生在 `--format table` 与日志 / `notes/` / `--dry-run`（05 §B.4）。
 - `--format pretty`：缩进 JSON；`--format table`：人类投影（每命令定义列；不得发明字段、不得省略关键 ID；时间转北京时间）。列表类在 table 模式可省略冗余字段，JSON 模式不省。
 - 聚合命令例外：`whoami`、`status` 共用**同一形状**（写入 `--help` 与 03）：`{ "health"?, "auth", "console"?, "orgs"? }`——`console` 需控制台权限、`orgs` 需登录，缺省即省略；`orgs` 附 CLI 侧取数时间戳（对应服务端 120s 缓存窗口）。
 - 颜色仅 TTY；`NO_COLOR` / `--no-color` 关闭。
