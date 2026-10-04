@@ -19,3 +19,14 @@
 - 执行者：agent-omp
 - 做了什么：`review --dry-run`（真实投递 id）、`feedback reply/delete` 的 dry-run 与拒绝确认路径
 - 结果：dry-run 打印 PATCH 请求与 body（expected_status/expected_review_id 由真实详情推导）；无 --yes 非交互调用 exit 2 且未发送；缺字段 exit 2。**未执行任何真实写入**（避免发信/改真实数据）
+
+## 14:12:29 +08:00 · 提交 · #8 · 写路径框架 + console 写命令
+
+- 执行者：agent-omp
+- 做了什么：提交 3a2bb018d010（api 写方法/模型、commands 框架与命令、cli 开关与接线、mock 测试、notes）
+- 结果：cargo test --locked 21 + 5 全过；真机零副作用冒烟通过
+
+## 14:12:29 +08:00 · 推送 · #8 · 推送 task/8/console_writes（堆叠于 #7）
+
+- 执行者：agent-omp
+- 结果：远端 task/8/console_writes 更新至 3a2bb018d010（推送记录随本条入库）
