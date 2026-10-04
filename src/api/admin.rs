@@ -3,25 +3,7 @@
 use anyhow::Result;
 use serde_json::Value;
 
-use super::Client;
-
-/// 生成查询串（键值都编码；空列表返回空串）。
-fn query(pairs: &[(&str, String)]) -> String {
-    if pairs.is_empty() {
-        return String::new();
-    }
-    let encoded: Vec<String> = pairs
-        .iter()
-        .map(|(key, value)| {
-            format!(
-                "{}={}",
-                urlencoding::encode(key),
-                urlencoding::encode(value)
-            )
-        })
-        .collect();
-    format!("?{}", encoded.join("&"))
-}
+use super::{query, Client};
 
 fn org_path(org: &str, tail: &str) -> String {
     format!("/api/admin/{}/{tail}", urlencoding::encode(org))
@@ -155,8 +137,5 @@ mod tests {
             repo_path("a/b", "r r", "tree"),
             "/api/admin/a%2Fb/repos/r%20r/tree"
         );
-        assert_eq!(query(&[]), "");
-        assert_eq!(query(&[("state", "open".into())]), "?state=open");
-        assert_eq!(query(&[("ref", "feature/x".into())]), "?ref=feature%2Fx");
     }
 }

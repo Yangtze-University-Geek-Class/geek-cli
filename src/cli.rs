@@ -189,6 +189,78 @@ pub enum OrgCmd {
 pub enum ConsoleCmd {
     /// 控制台身份 / 称号 / 能力（GET /api/console/me）
     Me,
+    /// 概览统计（按本人能力返回子集；GET /api/console/summary）
+    Summary,
+    /// 配置类只读数据：称号 / 色标 / 能力 / 领域 / 权限包 / 图标 / 投递状态
+    Catalogue,
+    /// 成员全名单（含称号；GET /api/console/people）
+    People,
+    /// 部门
+    #[command(subcommand)]
+    Department(DepartmentCmd),
+    /// 称号指派
+    #[command(subcommand)]
+    Assignment(AssignmentCmd),
+    /// 投递（申请）
+    #[command(subcommand)]
+    Application(ApplicationCmd),
+    /// 意见箱
+    #[command(subcommand)]
+    Feedback(FeedbackCmd),
+    /// 审计日志（脱敏；GET /api/console/audit）
+    Audit {
+        #[arg(long)]
+        limit: Option<u32>,
+        #[arg(long)]
+        offset: Option<u32>,
+        #[arg(long)]
+        action: Option<String>,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+pub enum DepartmentCmd {
+    /// 部门列表（含负责人、人数、权限包）
+    List,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum AssignmentCmd {
+    /// 指派列表（可按部门 / 角色筛选）
+    List {
+        #[arg(long)]
+        department: Option<String>,
+        #[arg(long, value_parser = ["captain", "head", "member", "alumni"])]
+        role: Option<String>,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+pub enum ApplicationCmd {
+    /// 投递列表（筛选 / 搜索 / 分页）
+    List {
+        #[arg(long, value_parser = ["received", "interview", "accepted", "rejected"])]
+        status: Option<String>,
+        #[arg(long)]
+        q: Option<String>,
+        #[arg(long)]
+        limit: Option<u32>,
+        #[arg(long)]
+        offset: Option<u32>,
+    },
+    /// 投递详情（含审核历史）
+    Show { application_id: String },
+}
+
+#[derive(Subcommand, Debug)]
+pub enum FeedbackCmd {
+    /// 意见箱列表
+    List {
+        #[arg(long, value_parser = ["open", "triaged", "in_progress", "done", "wont_do", "spam"])]
+        status: Option<String>,
+        #[arg(long)]
+        limit: Option<u32>,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -298,6 +370,33 @@ pub async fn run(cli: Cli) -> Result<()> {
         },
         Cmd::Console(c) => match c {
             ConsoleCmd::Me => commands::console::me(&base, cli.format).await,
+            ConsoleCmd::Summary => commands::console::summary(&base, cli.format).await,
+            ConsoleCmd::Catalogue => commands::console::catalogue(&base, cli.format).await,
+            ConsoleCmd::People => commands::console::people(&base, cli.format).await,
+            ConsoleCmd::Department(c) => match c {
+                DepartmentCmd::List => commands::console::departments(&base, cli.format).await,
+            },
+            ConsoleCmd::Assignment(c) => match c {
+                AssignmentCmd::List { department, role } => {
+                    commands::console::assignments(&base, department.as_deref(), role.as_deref(), cli.format).await
+                }
+            },
+            ConsoleCmd::Application(c) => match c {
+                ApplicationCmd::List { status, q, limit, offset } => {
+                    commands::console::applications(&base, status.as_deref(), q.as_deref(), limit, offset, cli.format).await
+                }
+                ApplicationCmd::Show { application_id } => {
+                    commands::console::application(&base, &application_id, cli.format).await
+                }
+            },
+            ConsoleCmd::Feedback(c) => match c {
+                FeedbackCmd::List { status, limit } => {
+                    commands::console::feedback(&base, status.as_deref(), limit, cli.format).await
+                }
+            },
+            ConsoleCmd::Audit { limit, offset, action } => {
+                commands::console::audit(&base, limit, offset, action.as_deref(), cli.format).await
+            }
         },
         Cmd::Member(c) => cmd_member(c, cli.format).await,
         Cmd::Invite(c) => cmd_invite(c, cli.format).await,

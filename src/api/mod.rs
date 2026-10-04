@@ -39,6 +39,24 @@ fn resolve_base_with(base: Option<&str>, env: Option<&str>, env_base: Option<Str
     }
 }
 
+/// 生成查询串（键值都经 `urlencoding`；空列表返回空串）。
+pub(crate) fn query(pairs: &[(&str, String)]) -> String {
+    if pairs.is_empty() {
+        return String::new();
+    }
+    let encoded: Vec<String> = pairs
+        .iter()
+        .map(|(key, value)| {
+            format!(
+                "{}={}",
+                urlencoding::encode(key),
+                urlencoding::encode(value)
+            )
+        })
+        .collect();
+    format!("?{}", encoded.join("&"))
+}
+
 pub struct Client {
     base: String,
     sid: Option<String>,
@@ -104,6 +122,13 @@ impl Client {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn query_encoding() {
+        assert_eq!(query(&[]), "");
+        assert_eq!(query(&[("state", "open".into())]), "?state=open");
+        assert_eq!(query(&[("ref", "feature/x".into())]), "?ref=feature%2Fx");
+    }
 
     #[test]
     fn base_resolution_order() {
