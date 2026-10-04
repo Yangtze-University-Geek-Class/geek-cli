@@ -32,28 +32,6 @@ pub fn load() -> Result<Stored> {
     Ok(parsed)
 }
 
-pub fn save(stored: &Stored) -> Result<()> {
-    let path = token_path()?;
-    let bytes = serde_json::to_vec_pretty(stored)?;
-    std::fs::write(&path, bytes).with_context(|| format!("write {}", path.display()))?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let mut perm = std::fs::metadata(&path)?.permissions();
-        perm.set_mode(0o600);
-        std::fs::set_permissions(&path, perm)?;
-    }
-    Ok(())
-}
-
-pub fn clear() -> Result<()> {
-    let path = token_path()?;
-    if path.exists() {
-        std::fs::remove_file(&path).with_context(|| format!("remove {}", path.display()))?;
-    }
-    Ok(())
-}
-
 pub fn require_token() -> Result<String> {
     if let Ok(t) = std::env::var("GEEK_TOKEN") {
         if !t.is_empty() {

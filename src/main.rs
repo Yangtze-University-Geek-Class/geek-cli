@@ -1,15 +1,16 @@
-use anyhow::Result;
-use clap::Parser;
-
-mod auth;
 mod cli;
 mod config;
 mod forum;
 mod gh;
-mod output;
+
+use clap::Parser;
+use geek_cli::output;
 
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() {
     let args = cli::Cli::parse();
-    cli::run(args).await
+    let format = args.format;
+    if let Err(err) = cli::run(args).await {
+        output::report_error(&err, format);
+    }
 }

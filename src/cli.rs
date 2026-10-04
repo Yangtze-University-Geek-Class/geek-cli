@@ -2,10 +2,13 @@ use anyhow::{Context, Result, bail};
 use clap::{Parser, Subcommand};
 use serde_json::{Value, json};
 
-use crate::config::{self, Stored};
+use geek_cli::api;
+use geek_cli::commands;
+use geek_cli::output::{Format, emit, print_message};
+
+use crate::config;
 use crate::forum::ForumClient;
 use crate::gh::GhClient;
-use crate::output::{Format, emit, print_message};
 
 #[derive(Parser, Debug)]
 #[command(name = "geek", version, about = "Yangtze University Geek Class CLI for agents and humans", long_about = None)]
@@ -14,18 +17,35 @@ pub struct Cli {
     #[arg(global = true, short, long, value_enum, default_value_t = Format::Json)]
     pub format: Format,
 
+    /// Base URL（默认正式环境；也可用环境变量 GEEK_BASE）
+    #[arg(long, global = true, conflicts_with = "env")]
+    pub base: Option<String>,
+
+    /// 环境语法糖：prod / prev / local
+    #[arg(long, global = true, value_parser = ["prod", "prev", "local"])]
+    pub env: Option<String>,
+
     #[command(subcommand)]
     pub command: Cmd,
 }
 
 #[derive(Subcommand, Debug)]
 pub enum Cmd {
-    /// Sign in via GitHub OAuth Device flow
-    Login,
-    /// Forget the stored token
+    /// 导入浏览器会话（sid）：在浏览器登录后复制 Cookie 里的 sid
+    Login {
+        /// 直接给出 sid（会出现在进程列表，建议用 --sid-stdin）
+        #[arg(long)]
+        sid: Option<String>,
+        /// 从标准输入读取 sid
+        #[arg(long)]
+        sid_stdin: bool,
+    },
+    /// 登出服务端会话并清理本地会话
     Logout,
-    /// Show the currently signed-in account
+    /// 显示当前身份（auth + console + orgs）
     Whoami,
+    /// 连通性 / 会话 / 能力自检
+    Status,
     /// Organization commands
     #[command(subcommand)]
     Org(OrgCmd),
@@ -288,9 +308,22 @@ pub enum ActivityCmd {
 
 pub async fn run(cli: Cli) -> Result<()> {
     match cli.command {
-        Cmd::Login => cmd_login().await,
-        Cmd::Logout => cmd_logout(),
-        Cmd::Whoami => cmd_whoami(cli.format).await,
+        Cmd::Login { sid, sid_stdin } => {
+            let base = api::resolve_base(cli.base.as_deref(), cli.env.as_deref());
+            commands::auth::login(&base, sid, sid_stdin, cli.format).await
+        }
+        Cmd::Logout => {
+            let base = api::resolve_base(cli.base.as_deref(), cli.env.as_deref());
+            commands::auth::logout(&base, cli.format).await
+        }
+        Cmd::Whoami => {
+            let base = api::resolve_base(cli.base.as_deref(), cli.env.as_deref());
+            commands::auth::whoami(&base, cli.format).await
+        }
+        Cmd::Status => {
+            let base = api::resolve_base(cli.base.as_deref(), cli.env.as_deref());
+            commands::auth::status(&base, cli.format).await
+        }
         Cmd::Org(c) => cmd_org(c, cli.format).await,
         Cmd::Member(c) => cmd_member(c, cli.format).await,
         Cmd::Invite(c) => cmd_invite(c, cli.format).await,
@@ -440,32 +473,6 @@ async fn cmd_forum(c: ForumCmd, fmt: Format) -> Result<()> {
             emit(&v, fmt)
         }
     }
-}
-
-async fn cmd_login() -> Result<()> {
-    let (token, login) = crate::auth::login().await?;
-    config::save(&Stored { token: Some(token), login: Some(login.clone()) })?;
-    print_message(&format!("已登录为 @{login}。token 存到 {}", config::token_path()?.display()));
-    Ok(())
-}
-
-fn cmd_logout() -> Result<()> {
-    config::clear()?;
-    print_message("已退出，token 已删除");
-    Ok(())
-}
-
-async fn cmd_whoami(fmt: Format) -> Result<()> {
-    let token = config::require_token()?;
-    let gh = GhClient::new(token)?;
-    let me: Value = gh.get("/user").await?;
-    emit(&json!({
-        "login": me["login"],
-        "id": me["id"],
-        "name": me["name"],
-        "html_url": me["html_url"],
-        "avatar_url": me["avatar_url"],
-    }), fmt)
 }
 
 fn split_full(full: &str) -> Result<(&str, &str)> {
