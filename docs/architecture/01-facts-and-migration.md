@@ -53,7 +53,7 @@
 |---|---|---|---|
 | `login` | 改造 | `geek login`（粘贴/stdin/`GEEK_SID`） | 不再有 device code；见 02 §2 |
 | `logout` | 保留 | `geek logout`（`POST /auth/signout` + 本地清除） | 未登录调用也成功 |
-| `whoami` | 改造 | `geek whoami`（`/auth/me` + `/api/console/me` 合并） | 输出两个来源的合并对象（CLI 聚合命令例外，附 `sources`） |
+| `whoami` | 改造 | `geek whoami`（`/auth/me` + `/api/console/me` + `/api/me/orgs`） | 聚合形状 `{health?, auth, console?, orgs?}`（与 `status` 同源，见 02 §7） |
 | — | 新增 | `geek status`（`/healthz` + 会话 + 能力摘要） | 排障入口 |
 | `org list` | 保留 | `GET /api/me/orgs` | 输出仍在 `orgs[]` |
 | `org show <org>` | 改造 | `GET /api/admin/:org/overview` | 响应含 `role/org/counts` |
@@ -83,7 +83,7 @@
 | `forum pin-thread` | 改造 | `POST /topics/:id/pin`（body `{pinned}`） | 授权改为 `forum.topic.pin` 能力 |
 | `forum user <name>` | 删除 | 用 `forum search <q>` 或 `state.users` | API 无按名查用户 |
 | `forum groups / users / set-role / new-teacher / teacher-overview` | **删除** | — | 新 API 无这些概念（角色体系=称号+能力，见手册 §4/§8） |
-| `dashboard` | 保留 | 打开 `<base>/console` | 可扩展 `geek open` |
+| `dashboard` | 保留 | 打开 `<base>/console` | 浏览器打开控制台；命令名与 03 一致 |
 | — | 新增 | `console *`（含 `console application *` / `console feedback *`）、`join *`、`self *` | 见 03 全量表；家族名以 `console` 为前缀，不存在顶层 `application` / `feedback` 命令 |
 
 ## 6. 版本与兼容策略
