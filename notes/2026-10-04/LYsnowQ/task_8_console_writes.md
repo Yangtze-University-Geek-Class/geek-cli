@@ -29,4 +29,11 @@
 ## 14:12:29 +08:00 · 推送 · #8 · 推送 task/8/console_writes（堆叠于 #7）
 
 - 执行者：agent-omp
+- 做了什么：git push origin task/8/console_writes
 - 结果：远端 task/8/console_writes 更新至 3a2bb018d010（推送记录随本条入库）
+
+## 14:56:24 +08:00 · 提交 · #8 · 记录补正：补「做了什么」必填字段
+
+- 执行者：agent-omp
+- 做了什么：为 task_8「推送」条目补「做了什么」；task_2「合并」、task_6/task_7「推送」条目随 rebase 并入各分支补正（docs/05 §3 必填三项；#14 note.mjs check 检出）
+- 结果：note.mjs check 全树通过（INDEX 临时生成校验后删除；全库 INDEX 见 #15）
