@@ -13,3 +13,14 @@
 - 执行者：agent-omp
 - 做了什么：新增 api/admin.rs（组织网关读端点）、commands/{org,repo,console}.rs、cli.rs 接线；`<org>/<repo>` 格式错误走退出码 2；会话由 GEEK_SID > 会话文件解析
 - 结果：cargo build --locked 通过（仅剩旧代码 GhClient::patch 告警）；cargo test --locked 14/14
+
+## 13:40:48 +08:00 · 提交 · #6 · P0 读命令 + notes + CI
+
+- 执行者：agent-omp
+- 做了什么：提交 994db9c09558（api/admin.rs、commands/{org,repo,console}.rs、cli.rs 接线、.github/workflows/ci.yml、notes 补录）
+- 结果：cargo build --locked 通过；cargo test --locked 14/14；错误路径冒烟通过（未登录→exit 3、格式错误→exit 2、伪 sid→exit 3）
+
+## 13:40:48 +08:00 · 推送 · #6 · 推送 task/6/p0_read_commands
+
+- 执行者：agent-omp
+- 结果：远端任务分支更新至 994db9c09558（推送记录提交随本条入库）
