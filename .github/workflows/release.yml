@@ -10,8 +10,25 @@ permissions:
   contents: write
 
 jobs:
+  verify-tag:
+    name: verify tag matches Cargo.toml
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tag must equal v<Cargo.toml version> (rc suffix allowed)
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          tag="${GITHUB_REF#refs/tags/}"
+          version="v$(grep -m1 '^version' Cargo.toml | sed -E 's/.*"([^"]+)".*$/\1/')"
+          case "$tag" in
+            "$version"|"$version"-rc.*) ;;
+            *) echo "::error::tag $tag 与 Cargo.toml version $version 不一致"; exit 1 ;;
+          esac
+          echo "tag $tag matches $version"
+
   build:
     name: build ${{ matrix.target }}
+    needs: verify-tag
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -60,6 +77,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
+          prerelease: ${{ contains(github.ref_name, '-rc.') }}
           files: |
             dist/geek-${{ matrix.target }}${{ matrix.ext }}
             dist/geek-${{ matrix.target }}${{ matrix.ext }}.sha256
@@ -81,6 +99,7 @@ jobs:
       - name: Upload install.sh / install.ps1
         uses: softprops/action-gh-release@v2
         with:
+          prerelease: ${{ contains(github.ref_name, '-rc.') }}
           files: |
             install.sh
             install.ps1
