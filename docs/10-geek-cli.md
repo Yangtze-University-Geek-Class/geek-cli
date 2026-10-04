@@ -59,6 +59,7 @@ cargo build --locked --release
 | `src/session.rs`、`src/config.rs`（会话、环境变量，v2） | `README.md`「鉴权与权限」「环境变量」+ `SKILL.md` Auth |
 | `src/output.rs`（格式行为） | `README.md`「输出格式」+ `SKILL.md` Output discipline |
 | `src/update.rs`（自更新，v2） | `docs/architecture/04` + `README.md`「安装」 |
+| `scripts/**`（工具） | `scripts/README.md` |
 | `Cargo.toml` `version` | 发版时与 tag 一致（§5） |
 | `.github/workflows/`、`install.sh`、`install.ps1`、`npm/**` | `README.md`「安装」+ `npm/README.md` |
 
@@ -108,7 +109,7 @@ cargo build --locked --release
 | 2 | PR CI（fmt / clippy / test / build） | 构建/测试门禁只在本地；远端合并门禁已由 ruleset 提供 | **已排入 P0**（`docs/architecture/06` §4）：新增 `.github/workflows/ci.yml`；建成后由所有者加入 ruleset 的 required check |
 | 3 | 发布前 tag ↔ `Cargo.toml` 版本校验 | 只能人工核对 | 加到 release workflow |
 | 4 | 测试 | `src/` 无测试，回归靠人工 | 随行为变更逐个补（§2） |
-| 5 | task / worktree / notes 脚本与 `notes/INDEX.md` 生成 | 手工执行、人工核对 | 按需引入，输出格式必须与 01 / 05 一致 |
+| 5 | task / worktree 脚本与 `notes/INDEX.md` 生成 | worktree 仍手工；notes 已工具化（add / index / check） | `scripts/note.mjs` 已落地（#14）；全库 INDEX 重生成与 CI 接线见 #15（待 #9 合并）；task / worktree 脚本按需 |
 | 6 | `README.md`「命令一览」缺 `forum` 子命令 | 用户文档不完整（`SKILL.md` 已有） | 下一个触及 README 的 PR 补齐 |
 | 7 | npm 发布失败后的自动核对 / 重试 | 依赖发版人手动 re-run | 可改为发布 job 失败即让汇总失败 |
 | 8 | fmt / clippy 未过（既有代码未 rustfmt 化；`gh.rs` `GhClient::patch` 死代码，2026-10-02 基线实测） | 四步门禁暂不可全绿 | 首个 `style` PR 跑 `cargo fmt --all`；`patch` 要么用起来要么删除 |
