@@ -318,7 +318,9 @@ fn read_body(body: Option<String>, body_file: Option<String>) -> Result<String> 
 }
 
 async fn cmd_forum(c: ForumCmd, fmt: Format) -> Result<()> {
-    let token = config::require_token()?;
+    // 站内 API 只认设备令牌，不要用 require_token()（GitHub 令牌）：
+    // 那枚带 admin:org + repo，发给站点等于把整个组织交出去。
+    let token = config::require_site_token()?;
     let f = ForumClient::new(token)?;
     match c {
         ForumCmd::Me => {

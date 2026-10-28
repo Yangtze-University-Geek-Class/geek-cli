@@ -64,7 +64,7 @@ async fn check(res: &reqwest::Response) -> Result<()> {
         return Ok(());
     }
     if status == StatusCode::UNAUTHORIZED {
-        bail!("论坛拒绝 token (401)。CLI 用 GitHub PAT，需要先 `geek login`，并在论坛首次登录过一次确认 github_id 绑定");
+        bail!("站内 API 拒绝了令牌 (401)：这里要的是设备令牌，不是 GitHub 令牌。到 https://yangtzeu.work/device 授权后设 GEEK_SITE_TOKEN");
     }
     if status == StatusCode::FORBIDDEN {
         bail!("权限不足 (403)。该操作仅论坛负责人 / 协管可用，或目标分类是 legacy 只读区");
